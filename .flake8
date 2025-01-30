@@ -1,0 +1,41 @@
+[flake8]
+# It's not a bug that we aren't using all of hacking, ignore:
+# H101: Use TODO(NAME)
+# H202: assertRaises Exception too broad
+# H233: Python 3.x incompatible use of print operator
+# H301: one import per line
+# H306: imports not in alphabetical order (time, os)
+# H401: docstring should not start with a space
+# H403: multi line docstrings should end on a new line
+# H404: multi line docstring should start without a leading new line
+# H405: multi line docstring summary not separated with an empty line
+# H501: Do not use self.__dict__ for string formatting
+ignore = H101,H202,H233,H301,H306,H401,H403,H404,H405,H501
+
+# F401: module imported but unused
+# F403: ‘from module import *’ used; unable to detect undefined names
+# F405: name may be undefined, or defined from star imports: module
+# F841: local variable name is assigned to but never used
+per-file-ignores =
+    __init__.py: F401,F403,F405
+    tests/*.py: F841
+
+# Excluding some directories:
+exclude =
+    .git,
+    __pycache__,
+    old,
+    build,
+    dist
+
+# Maximum allowed line length for the entirety of this run (default: 79):
+max-line-length = 120
+
+# Maximum allowed complexity for the entirety of this run (default: 10):
+max-complexity = 11
+
+# Show source code for each error:
+show-source = True
+
+# Statistics of errors:
+statistics = True

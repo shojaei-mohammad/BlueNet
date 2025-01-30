@@ -1,0 +1,15 @@
+aiogram
+environs
+redis
+betterlogging
+pydantic
+pydantic-settings
+
+
+# # For PostgreSQL sqlalchemy + alembic:
+sqlalchemy
+alembic
+asyncpg
+
+# for reformatting thet code
+flake8
