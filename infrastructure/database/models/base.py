@@ -1,3 +1,4 @@
+# infrastructure/database/models/base.py
 from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -31,7 +32,10 @@ class TimestampMixin:
     every time the record is modified.
     """
 
-    CreatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
-    UpdatedAt: Mapped[datetime] = mapped_column(
-        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
     )
