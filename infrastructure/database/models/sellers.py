@@ -20,6 +20,10 @@ class SellerStatus(enum.Enum):
     SUSPENDED = 'suspended'
     BANNED = 'banned'
 
+class UserRole(enum.Enum):
+    ADMIN = "admin"
+    RESELLER = "user"
+
 
 class Seller(Base, TableNameMixin, TimestampMixin):
     id: Mapped[UUID] = mapped_column(
@@ -30,6 +34,7 @@ class Seller(Base, TableNameMixin, TimestampMixin):
     chat_id: Mapped[int] = mapped_column(BIGINT, unique=True, index=True)
     username: Mapped[str] = mapped_column(String, unique=True)
     full_name: Mapped[str] = mapped_column(String)
+    user_role: Mapped[str] = mapped_column(Enum(UserRole, name="user_role"))
     debt_limit: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2))
     current_debt: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2), default=0, index=True)
     total_profit: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2), default=0)
