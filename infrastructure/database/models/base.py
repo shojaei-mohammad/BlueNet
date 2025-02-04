@@ -1,10 +1,9 @@
-# infrastructure/database/models/base.py
 from datetime import datetime
 
-from sqlalchemy import event, func
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, Session
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 
 
 class Base(DeclarativeBase):
@@ -38,12 +37,3 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Add event listener to update `updated_at` automatically
-
-
-@event.listens_for(Session, "before_flush")
-def update_updated_at(session, context, instances):
-    for instance in session.dirty:
-        if isinstance(instance, TimestampMixin):
-            instance.updated_at = datetime.now()

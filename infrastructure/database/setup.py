@@ -1,4 +1,4 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from tgbot.config import DbConfig
 
@@ -16,5 +16,10 @@ def create_engine(db: DbConfig, echo=False):
 
 
 def create_session_pool(engine):
-    session_pool = async_sessionmaker(bind=engine, expire_on_commit=False)
+    """
+    Create and return an async session pool with the event listener registered.
+    """
+    session_pool = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     return session_pool
