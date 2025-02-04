@@ -3,7 +3,7 @@ from typing import Tuple, Optional
 from aiogram.types import InlineKeyboardMarkup, WebAppInfo, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from infrastructure.database.models.sellers import Seller, UserRole
+from infrastructure.database.models.sellers import UserRole
 
 menu_structure = {
     "admins_main_menu": {
@@ -109,7 +109,7 @@ menu_structure = {
 
 async def create_markup(
     menu_key: str,
-    user_role: Seller,
+    user_role: UserRole,
 ) -> Tuple[Optional[InlineKeyboardMarkup], Optional[str]]:
     menu = menu_structure.get(menu_key)
     if not menu:
@@ -125,7 +125,7 @@ async def create_markup(
             InlineKeyboardBuilder()
             .button(text="🔙 بازگشت به منوی اصلی", callback_data="users_main_menu")
             .as_markup(),
-            "⛔️ شما دسترسی به این بخش را ندارید."
+            "⛔️ شما دسترسی به این بخش را ندارید.",
         )
 
     options = menu["options"]
