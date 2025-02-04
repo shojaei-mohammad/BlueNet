@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +33,7 @@ class TgBot(BaseSettings, env_prefix="TGBOT_"):
     token: SecretStr
     admin_ids: list[int]
     use_redis: bool = False
+    defalt_dept: Decimal
 
 
 class DbConfig(BaseSettings, env_prefix="DB_"):
@@ -112,22 +114,6 @@ class RedisConfig(BaseSettings, env_prefix="REDIS_"):
             return f"redis://{self.host}:{self.port}/0"
 
 
-class Miscellaneous(BaseSettings, env_prefix="MISC_"):
-    """
-    Miscellaneous configuration class.
-
-    This class holds settings for various other parameters.
-    It merely serves as a placeholder for settings that are not part of other categories.
-
-    Attributes
-    ----------
-    other_params : str, optional
-        A string used to hold other various parameters as required (default is None).
-    """
-
-    other_params: str
-
-
 class Config(BaseModel):
     """
     The main configuration class that integrates all the other configuration classes.
@@ -138,8 +124,6 @@ class Config(BaseModel):
     ----------
     tg_bot : TgBot
         Holds the settings related to the Telegram Bot.
-    misc : Miscellaneous
-        Holds the values for miscellaneous settings.
     db : Optional[DbConfig]
         Holds the settings specific to the database (default is None).
     redis : Optional[RedisConfig]
@@ -149,7 +133,6 @@ class Config(BaseModel):
     tg_bot: TgBot
     db: DbConfig
     redis: RedisConfig
-    misc: Optional[Miscellaneous]
 
 
 def load_config(env_file: Optional[str] = None):
@@ -195,7 +178,6 @@ def load_config(env_file: Optional[str] = None):
             tg_bot=TgBot(_env_file=env_file),
             db=DbConfig(_env_file=env_file),
             redis=RedisConfig(_env_file=env_file),
-            misc=Miscellaneous(_env_file=env_file),
         )
         logging.info(f"Configuration loaded from {env_file_path}")
         return config
