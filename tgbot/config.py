@@ -1,5 +1,4 @@
 import logging
-from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -33,7 +32,7 @@ class TgBot(BaseSettings, env_prefix="TGBOT_"):
     token: SecretStr
     admin_ids: list[int]
     use_redis: bool = False
-    defalt_dept: Decimal
+    support_link: str
 
 
 class DbConfig(BaseSettings, env_prefix="DB_"):

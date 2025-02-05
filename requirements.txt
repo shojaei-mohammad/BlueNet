@@ -4,6 +4,9 @@ redis
 betterlogging
 pydantic
 pydantic-settings
+jdatetime
+routeros_api
+APScheduler==3.11.0
 
 
 # # For PostgreSQL sqlalchemy + alembic:

@@ -1,53 +1,101 @@
+# tgbot/handlers/user.py
 import logging
 
-from aiogram import Router
-from aiogram.filters import CommandStart, CommandObject, or_f
-from aiogram.types import Message
-from aiogram.utils.deep_linking import create_start_link
-from aiogram.utils.payload import decode_payload
+from aiogram import Router, html
+from aiogram.filters import CommandStart
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from infrastructure.database.models import BotUser
-from infrastructure.database.repo.requests import RequestsRepo
+from infrastructure.database.models.sellers import Seller, SellerStatus
+from tgbot.config import Config
 from tgbot.keyboards.menu import create_markup
+from tgbot.services.utils import format_currency, convert_english_digits_to_farsi
 
 user_router = Router()
 
 
-@user_router.message(or_f(CommandStart(deep_link=True), CommandStart()))
-async def user_start(
-    message: Message,
-    command: CommandObject,
-    repo: RequestsRepo,
-    user: BotUser,
-):
-    chat_id = message.chat.id
-    args = command.args
-    try:
-        markup, text = await create_markup("users_main_menu")
-        referral_link = await create_start_link(message.bot, str(chat_id), encode=True)
+@user_router.message(CommandStart())
+async def user_start_without_link(message: Message, seller: Seller, config: Config):
+    """Handle /start command and different seller statuses"""
 
-        # Decode referrer ID from command args if present
-        referrer_chat_id = decode_payload(args) if args else None
-        await repo.users.get_or_create_user(
-            chat_id=chat_id,
-            name=message.chat.first_name,
-            last_name=message.chat.last_name,
-            username=message.chat.username,
-            referral_code=chat_id,
-            referral_link=referral_link,
+    if seller.status == SellerStatus.BANNED:
+        await message.answer(
+            "⛔️ " + html.bold("دسترسی مسدود شده!") + "\n\n"
+            "متأسفانه دسترسی شما به ربات مسدود شده است. "
+            "در صورت نیاز به بررسی مجدد، لطفاً با پشتیبانی تماس بگیرید."
         )
 
-        if referrer_chat_id and not user.ReferredBy:
-            # If the user has a referrer, and it's not already set
-            await repo.users.update_referred_by(chat_id, int(referrer_chat_id))
-            await repo.users.update_referral_count(int(referrer_chat_id))
-            logging.info(
-                f"Referrer {referrer_chat_id} updated for new user Chat-id {chat_id}."
-            )
+    elif seller.status == SellerStatus.SUSPENDED:
+        kb = InlineKeyboardBuilder()
+        kb.button(text="📞 تماس با پشتیبانی", url=config.tg_bot.support_link)
 
-        # Welcome message or updated information if the user is revisiting
-        await message.answer(text=text, reply_markup=markup)
-    except UnicodeDecodeError:
-        logging.error("Codec can't decode command args - Invalid start byte")
-    except Exception as e:
-        logging.error(f"An unknown error occurred.\n Error: {e}")
+        await message.answer(
+            "⚠️ " + html.bold("حساب کاربری معلق شده!") + "\n\n"
+            "حساب کاربری شما موقتاً معلق شده است. "
+            "برای اطلاعات بیشتر و رفع تعلیق با پشتیبانی تماس بگیرید.",
+            reply_markup=kb.as_markup(),
+        )
+
+    elif seller.status == SellerStatus.APPROVED:
+        # Show main menu for approved sellers
+        markup, text = await create_markup("users_main_menu", seller.user_role)
+        remaining_dept = format_currency(
+            (seller.debt_limit - seller.current_debt), convert_to_farsi=True
+        )
+        welcome_text = (
+            "🎉 " + html.bold("خوش آمدید!") + "\n\n"
+            f"💫 {html.bold('درصد تخفیف شما:')} {convert_english_digits_to_farsi(seller.discount_percent)} درصد\n"
+            f"💰 {html.bold('سقف فروش:')} {format_currency(seller.debt_limit, convert_to_farsi=True)} تومان\n"
+            f"📊 {html.bold('بدهی:')} {format_currency(seller.current_debt)} تومان\n"
+            f"✅ {html.bold('اعتبار باقیمانده:')} {remaining_dept} تومان\n\n" + text
+        )
+
+        await message.answer(text=welcome_text, reply_markup=markup)
+
+    elif seller.status == SellerStatus.PENDING:
+        await message.answer(
+            "👋 " + html.bold("سلام کاربر عزیز!") + "\n\n"
+            "🔄 درخواست شما در حال بررسی است.\n"
+            "📩 به محض تایید، به شما اطلاع‌رسانی خواهد شد.\n"
+            "⏳ لطفاً شکیبا باشید."
+        )
+
+        # Notify admins about the pending request
+        kb = InlineKeyboardBuilder()
+        kb.button(text="✅ تایید", callback_data=f"confirm_seller_{seller.id}")
+        kb.button(text="❌ رد کردن", callback_data=f"reject_seller_{seller.id}")
+        kb.adjust(2)
+
+        admin_notification = (
+            "📩 " + html.bold("درخواست ثبت‌نام جدید") + "\n\n"
+            f"👤 شناسه کاربر: {seller.chat_id}\n"
+            f"📝 نام کامل: {seller.full_name}\n"
+            f"🔍 وضعیت: {SellerStatus.PENDING.value}\n\n"
+            "لطفاً درخواست را بررسی کنید."
+        )
+
+        for admin_chat_id in config.tg_bot.admin_ids:
+            try:
+                await message.bot.send_message(
+                    chat_id=admin_chat_id,
+                    text=admin_notification,
+                    reply_markup=kb.as_markup(),
+                )
+            except Exception as e:
+                logging.error(f"Failed to notify admin {admin_chat_id}: {e}")
+
+    else:  # New user or unknown status
+        await message.answer(
+            "⛔️ " + html.bold("دسترسی محدود") + "\n\n"
+            "این ربات فقط برای فروشندگان تایید شده قابل استفاده است.\n"
+            "در صورت نیاز به دسترسی، لطفاً با پشتیبانی تماس بگیرید.",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="📞 تماس با پشتیبانی", url=config.tg_bot.support_link
+                        )
+                    ]
+                ]
+            ),
+        )

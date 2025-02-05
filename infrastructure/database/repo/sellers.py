@@ -1,10 +1,13 @@
 import logging
+from decimal import Decimal
 
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 
 from infrastructure.database.models.sellers import (
     Seller,
+    SellerStatus,
 )
 from infrastructure.database.repo.base import BaseRepo
 
@@ -65,3 +68,51 @@ class SellerRepo(BaseRepo):
             raise Exception(
                 "An unexpected error occurred during database operations."
             ) from e
+
+    async def update_seller_status(
+        self, seller_id: int, status: SellerStatus, is_active: bool = False
+    ) -> Seller:
+        try:
+            stmt = (
+                update(Seller)
+                .where(Seller.id == seller_id)
+                .values(
+                    status=status,
+                    is_active=is_active,
+                )
+                .returning(Seller)
+            )
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+            return result.scalar_one()
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logging.error(f"Failed to update seller status: {e}")
+            raise
+
+    async def complete_seller_registration(
+        self,
+        seller_id: int,
+        discount_percent: Decimal,
+        debt_limit: Decimal,
+        status: SellerStatus = SellerStatus.APPROVED,
+    ) -> Seller:
+        try:
+            stmt = (
+                update(Seller)
+                .where(Seller.id == seller_id)
+                .values(
+                    discount_percent=discount_percent,
+                    debt_limit=debt_limit,
+                    status=status,
+                    is_active=True,
+                )
+                .returning(Seller)
+            )
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+            return result.scalar_one()
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logging.error(f"Failed to complete seller registration: {e}")
+            raise

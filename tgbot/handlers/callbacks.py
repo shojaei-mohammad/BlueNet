@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.types import CallbackQuery
 
-from infrastructure.database.models import BotUser
+from infrastructure.database.models.sellers import Seller
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.keyboards.menu import menu_structure, create_markup
 
@@ -12,7 +12,7 @@ callback_router = Router()
 async def default_callback_query(
     call: CallbackQuery,
     repo: RequestsRepo,
-    user: BotUser,
+    seller: Seller,
 ):
     """
     Asynchronous handler for callback queries triggered by inline keyboard buttons.
@@ -22,6 +22,7 @@ async def default_callback_query(
     update the current message to reflect a different menu or provide feedback to the user.
 
     Args:
+        seller:
         call (CallbackQuery): The callback query object containing data about the callback.
         repo (RequestsRepo):
         user (BotUser):
@@ -32,7 +33,7 @@ async def default_callback_query(
     # Check if the received callback_data matches any menu defined in menu_structure
     if callback_data in menu_structure:
         # Generate the appropriate markup and text for the menu corresponding to callback_data
-        markup, menu_text = await create_markup(callback_data)
+        markup, menu_text = await create_markup(callback_data, seller.user_role)
         await call.message.edit_text(text=menu_text, reply_markup=markup)
 
     else:

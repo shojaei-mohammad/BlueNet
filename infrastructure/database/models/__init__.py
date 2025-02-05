@@ -79,7 +79,6 @@ Relationships Overview
     Interface ↔ Service: One-to-many.
     Seller ↔ Service: One-to-many.
     Seller ↔ Transaction: One-to-many.
-    Seller ↔ ReferralLink: One-to-many.
     Service ↔ Peer: One-to-one.
     Service ↔ Tariff: Many-to-one.
     Tariff ↔ Country: Many-to-one.
@@ -96,7 +95,6 @@ from .base import Base, TableNameMixin, TimestampMixin
 from .countries import Country
 from .interfaces import Interface
 from .peers import Peer
-from .referral_links import ReferralLink
 from .routers import Router
 from .sellers import Seller, SellerStatus, UserRole
 from .services import Service, ServiceStatus
@@ -112,7 +110,6 @@ __all__ = [
     "Router",
     "Interface",
     "Seller",
-    "ReferralLink",
     "Service",
     "Peer",
     "Tariff",

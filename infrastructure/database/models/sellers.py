@@ -3,9 +3,8 @@ import enum
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Integer, Boolean, String, DECIMAL, text, Enum, false
+from sqlalchemy import Integer, Boolean, String, DECIMAL, Enum, false
 from sqlalchemy.dialects.mysql import BIGINT
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
 from infrastructure.database.models.base import TableNameMixin, Base, TimestampMixin
@@ -13,7 +12,6 @@ from infrastructure.database.models.base import TableNameMixin, Base, TimestampM
 if TYPE_CHECKING:
     from infrastructure.database.models.services import Service
     from infrastructure.database.models.transactions import Transaction
-    from infrastructure.database.models.referral_links import ReferralLink
 
 
 class SellerStatus(enum.Enum):
@@ -29,8 +27,10 @@ class UserRole(enum.Enum):
 
 
 class Seller(Base, TableNameMixin, TimestampMixin):
-    id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
     )
     chat_id: Mapped[int] = mapped_column(BIGINT, unique=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
@@ -62,4 +62,3 @@ class Seller(Base, TableNameMixin, TimestampMixin):
     # Relationships
     services: Mapped[list["Service"]] = relationship(back_populates="seller")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="seller")
-    referral_links: Mapped[list["ReferralLink"]] = relationship(back_populates="seller")

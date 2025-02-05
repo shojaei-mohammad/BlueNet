@@ -29,7 +29,7 @@ class Service(Base, TableNameMixin, TimestampMixin):
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    seller_id: Mapped[UUID] = mapped_column(ForeignKey("sellers.id"), index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), index=True)
     tariff_id: Mapped[UUID] = mapped_column(ForeignKey("tariffs.id"))
     interface_id: Mapped[UUID] = mapped_column(ForeignKey("interfaces.id"))
     peer_id: Mapped[UUID] = mapped_column(ForeignKey("peers.id"), index=True)

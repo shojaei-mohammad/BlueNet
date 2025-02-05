@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.database.repo.referrals import ReferralRepo
 from infrastructure.database.repo.sellers import SellerRepo
 
 
@@ -22,10 +21,3 @@ class RequestsRepo:
         The User repository sessions are required to manage user operations.
         """
         return SellerRepo(self.session)
-
-    @property
-    def referrals(self) -> ReferralRepo:
-        """
-        The Referral repository sessions are required to manage referral operations.
-        """
-        return ReferralRepo(self.session)

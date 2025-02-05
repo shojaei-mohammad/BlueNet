@@ -23,7 +23,7 @@ class Transaction(Base, TableNameMixin, TimestampMixin):
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    seller_id: Mapped[UUID] = mapped_column(ForeignKey("sellers.id"), index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), index=True)
     service_id: Mapped[Optional[UUID]] = mapped_column(
         ForeignKey("services.id"), nullable=True
     )
