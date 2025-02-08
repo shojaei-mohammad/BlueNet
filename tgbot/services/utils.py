@@ -8,6 +8,9 @@ from pathlib import Path
 import aiohttp
 import jdatetime
 from aiofiles import open as aioopen
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 
 def convert_english_digits_to_farsi(input_number: str | Decimal | int | float) -> str:
@@ -252,3 +255,64 @@ async def upload_image(
             logging.error(f"Unexpected error: {str(e)}", exc_info=True)
 
     return None
+
+
+# Telegram limits
+MESSAGES_PER_SECOND = 30
+MESSAGES_PER_MINUTE = 20 * 60  # 20 messages per minute per chat
+
+
+async def send_message_with_rate_limit(
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    markup: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
+):
+    try:
+        await bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        return True
+    except TelegramAPIError as e:
+        logging.error(f"Failed to send message to {chat_id}: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error when sending message to {chat_id}: {e}")
+        return False
+
+
+async def broadcast_messages(
+    bot: Bot,
+    chat_ids: list,
+    message: str,
+    markup: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
+):
+    successful = 0
+    failed = 0
+    start_time = asyncio.get_event_loop().time()
+
+    try:
+        for i, chat_id in enumerate(chat_ids):
+            if i % MESSAGES_PER_SECOND == 0 and i != 0:
+                await asyncio.sleep(1)  # Sleep for 1 second every 30 messages
+
+            if i % MESSAGES_PER_MINUTE == 0 and i != 0:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed < 60:
+                    await asyncio.sleep(60 - elapsed)
+                start_time = asyncio.get_event_loop().time()
+
+            success = await send_message_with_rate_limit(bot, chat_id, message, markup)
+            if success:
+                successful += 1
+            else:
+                failed += 1
+
+            if (i + 1) % 100 == 0:
+                logging.info(
+                    f"Broadcast progress: {i + 1}/{len(chat_ids)} messages sent"
+                )
+
+    except Exception as e:
+        logging.error(f"Error during broadcast: {e}")
+
+    logging.info(f"Broadcast completed. Successful: {successful}, Failed: {failed}")
+    return successful, failed
