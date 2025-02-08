@@ -9,7 +9,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from infrastructure.database.models.sellers import Seller, SellerStatus
 from tgbot.config import Config
 from tgbot.keyboards.menu import create_markup
-from tgbot.services.utils import format_currency, convert_english_digits_to_farsi
 
 user_router = Router()
 
@@ -39,18 +38,8 @@ async def user_start_without_link(message: Message, seller: Seller, config: Conf
     elif seller.status == SellerStatus.APPROVED:
         # Show main menu for approved sellers
         markup, text = await create_markup("users_main_menu", seller.user_role)
-        remaining_dept = format_currency(
-            (seller.debt_limit - seller.current_debt), convert_to_farsi=True
-        )
-        welcome_text = (
-            "🎉 " + html.bold("خوش آمدید!") + "\n\n"
-            f"💫 {html.bold('درصد تخفیف شما:')} {convert_english_digits_to_farsi(seller.discount_percent)} درصد\n"
-            f"💰 {html.bold('سقف فروش:')} {format_currency(seller.debt_limit, convert_to_farsi=True)} تومان\n"
-            f"📊 {html.bold('بدهی:')} {format_currency(seller.current_debt)} تومان\n"
-            f"✅ {html.bold('اعتبار باقیمانده:')} {remaining_dept} تومان\n\n" + text
-        )
 
-        await message.answer(text=welcome_text, reply_markup=markup)
+        await message.answer(text=text, reply_markup=markup)
 
     elif seller.status == SellerStatus.PENDING:
         await message.answer(
