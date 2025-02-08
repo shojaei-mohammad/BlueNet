@@ -18,6 +18,7 @@ from tgbot.states.admin import SellerRegistration
 
 admin_router = Router()
 admin_router.message.filter(AdminFilter())
+admin_router.callback_query.filter(AdminFilter())
 
 
 async def _process_menu_navigation(callback: CallbackQuery, menu_type: str) -> None:
@@ -228,7 +229,9 @@ async def default_admin_callback_query(
                 await callback.message.edit_text(
                     "❌ خطا در رد درخواست. لطفا مجددا تلاش کنید."
                 )
-
+        else:
+            logging.info(f"undefined callback: {callback_data}")
+            await callback.answer(text="منو تعریف نشده است.")
     except TelegramBadRequest as e:
         logging.error(f"Telegram API error: {e}")
         await callback.answer(
