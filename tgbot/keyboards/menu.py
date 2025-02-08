@@ -8,100 +8,103 @@ from infrastructure.database.models.sellers import UserRole
 menu_structure = {
     "admins_main_menu": {
         "text": "📁 به پنل کاربری خوش آمدید. یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1, 1, 1],
+        "row_width": 1,
         "menu_type": "admin",
         "options": [
-            {"text": "📨 ارسال پیام به فروشندگان", "callback_data": "sendMessage_all"},
+            {"text": "📨 ارسال پیام به فروشندگان", "callback_data": "send_message"},
             {"text": "🤝 مدیریت عاملان فروش", "callback_data": "manage_resellers"},
-            {"text": "🔗 ایجاد لینک دسترسی", "callback_data": "generate_link"},
             {"text": "👀 مشاهده منو عاملان", "callback_data": "users_main_menu"},
         ],
     },
     "users_main_menu": {
         "text": "📁 به پنل کاربری خوش آمدید. یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1, 1, 1, 1],
+        "row_width": 1,
         "menu_type": "user",
         "options": [
             {"text": "👤 پروفایل من", "callback_data": "my_profile"},
-            {"text": "👥 مدیریت کاربران", "callback_data": "mng_usrs"},
-            {"text": "📡 وضعیت سرورها", "callback_data": "rtr_state"},
-            {"text": "💰 مدیرت مالی", "callback_data": "finance"},
-            {"text": "☎️ پشتیبانی", "url": "https://t.ne/BlueNet1"},
+            {"text": "👥 مدیریت کاربران", "callback_data": "manage_services"},
+            {"text": "📡 وضعیت سرورها", "callback_data": "routers"},
+            {"text": "💰 مدیریت مالی", "callback_data": "finance"},
+            {"text": "☎️ پشتیبانی", "url": "https://t.me/BlueNet1"},
         ],
     },
-    "mng_usrs": {
+    "manage_services": {
         "text": "👥 یکی از موارد زیر را انتخاب کنید.",
+        "row_width": 1,
         "back": "users_main_menu",
         "menu_type": "user",
         "options": [
-            {"text": "➕ ایجاد کاربر", "callback_data": "add_vpn"},
-            {"text": "👥 کاربران من", "callback_data": "my_usrs"},
+            {"text": "➕ ایجاد کاربر", "callback_data": "create_service"},
+            {"text": "👥 کاربران من", "callback_data": "my_services"},
             {"text": "📊 گزارشات", "callback_data": "reports"},
         ],
     },
     "reports": {
-        "text": "یکی از موارد زیر را انتخاب کنید.",
-        "back": "mng_usrs",
+        "text": "📊 یکی از موارد زیر را انتخاب کنید.",
+        "row_width": 1,
+        "back": "manage_services",
         "menu_type": "user",
         "options": [
-            {"text": "🔔 کاربران در حال انقضا ", "callback_data": "rep_expire"},
+            {"text": "🔔 کاربران در حال انقضا", "callback_data": "rep_expire"},
         ],
     },
-    "add_vpn": {
+    "create_service": {
         "text": "🔒 یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1],
-        "back": "mng_usrs",
+        "row_width": 1,
+        "back": "manage_services",
         "menu_type": "user",
         "options": [
-            {"text": "ای پی داینامیک", "callback_data": "dynamic"},
-            {"text": "ای پی ثابت", "callback_data": "fixed"},
+            {"text": "ایجاد کاربر جدید", "callback_data": "add_user"},
+            {"text": "ویرایش کاربر موجود", "callback_data": "edit_user"},
         ],
     },
-    "dynamic": {
-        "text": "🔒 یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1],
-        "back": "add_vpn",
-        "menu_type": "user",
-        "options": [
-            {"text": "🚶‍♂️ ایجاد کاربر تکی", "callback_data": "dynamic_single"},
-            {"text": "👥 ایجاد کاربر انبوه", "callback_data": "dynamic_bulk"},
-        ],
-    },
-    "fixed": {
-        "text": "🔒 کشور مورد نظرتان را انتخاب نمایید.",
-        "row_width": [2, 2, 2, 2],
-        "back": "add_vpn",
-        "menu_type": "user",
-        "options": [
-            {"text": "🇫🇮 فنلاند", "callback_data": "fixed_finland"},
-            {"text": "🇳🇱 هلند", "callback_data": "fixed_netherlands"},
-            {"text": "🇺🇸 آمریکا", "callback_data": "fixed_us"},
-            {"text": "🇬🇧 انگلیس", "callback_data": "fixed_uk"},
-            {"text": "🇹🇷 ترکیه", "callback_data": "fixed_turkey"},
-            {"text": "🇦🇪 امارات", "callback_data": "fixed_uae"},
-            {"text": "🇫🇷 فرانسه", "callback_data": "fixed_france"},
-            {"text": "🇨🇦 کانادا", "callback_data": "fixed_canada"},
-        ],
-    },
-    "my_usrs": {
+    "my_services": {
         "text": "🔍 یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1, 1],
-        "back": "mng_usrs",
+        "row_width": 1,
+        "back": "manage_services",
         "menu_type": "user",
         "options": [
-            {"text": "📜 مشاهده همه کاربران", "callback_data": "all_usr"},
+            {"text": "📜 مشاهده همه کاربران", "callback_data": "services"},
             {"text": "🔍 جستجو با نام کاربری", "callback_data": "find_user"},
             {"text": "🔍 جستجو با آدرس IP", "callback_data": "find_ip"},
         ],
     },
     "finance": {
         "text": "💰 یکی از موارد زیر را انتخاب کنید.",
-        "row_width": [1, 1],
+        "row_width": 1,
         "back": "users_main_menu",
         "menu_type": "user",
         "options": [
             {"text": "📑 تراکنش ها", "callback_data": "transaction_repo"},
             {"text": "📤 درخواست تسویه حساب", "callback_data": "debit"},
+        ],
+    },
+    "transaction_repo": {
+        "text": "📑 یکی از موارد زیر را انتخاب کنید.",
+        "row_width": 1,
+        "back": "finance",
+        "menu_type": "user",
+        "options": [
+            {"text": "مشاهده تراکنش ها", "callback_data": "view_transactions"},
+            {"text": "دانلود گزارش", "callback_data": "download_report"},
+        ],
+    },
+    "debit": {
+        "text": "📤 درخواست تسویه حساب.",
+        "row_width": 1,
+        "back": "finance",
+        "menu_type": "user",
+        "options": [
+            {"text": "تسویه حساب", "callback_data": "settle_debt"},
+        ],
+    },
+    "routers": {
+        "text": "📡 وضعیت سرورها.",
+        "row_width": 1,
+        "back": "users_main_menu",
+        "menu_type": "user",
+        "options": [
+            {"text": "مشاهده وضعیت سرورها", "callback_data": "view_routers"},
         ],
     },
 }
