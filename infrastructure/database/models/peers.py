@@ -20,6 +20,7 @@ class Peer(Base, TableNameMixin, TimestampMixin):
     allocated_ip: Mapped[str] = mapped_column(String(15))
     dns_servers: Mapped[str] = mapped_column(String(255))
     qr_code: Mapped[str] = mapped_column(String)
+    end_point: Mapped[str] = mapped_column(String)
     config_file: Mapped[str] = mapped_column(String)
     peer_comment: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 
