@@ -2,7 +2,9 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from infrastructure.database.repo.countries import CountryRepo
 from infrastructure.database.repo.sellers import SellerRepo
+from infrastructure.database.repo.tariffs import TariffRepo
 
 
 @dataclass
@@ -21,3 +23,11 @@ class RequestsRepo:
         The User repository sessions are required to manage user operations.
         """
         return SellerRepo(self.session)
+
+    @property
+    def tariffs(self) -> TariffRepo:
+        return TariffRepo(self.session)
+
+    @property
+    def countries(self) -> CountryRepo:
+        return CountryRepo(self.session)
