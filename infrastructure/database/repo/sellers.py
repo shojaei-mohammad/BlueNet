@@ -1,4 +1,6 @@
+# infrastructure/database/repo/sellers.py
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import update
@@ -79,6 +81,7 @@ class SellerRepo(BaseRepo):
                 .values(
                     status=status,
                     is_active=is_active,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
                 )
                 .returning(Seller)
             )
@@ -106,6 +109,7 @@ class SellerRepo(BaseRepo):
                     debt_limit=debt_limit,
                     status=status,
                     is_active=True,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
                 )
                 .returning(Seller)
             )
@@ -115,4 +119,27 @@ class SellerRepo(BaseRepo):
         except SQLAlchemyError as e:
             await self.session.rollback()
             logging.error(f"Failed to complete seller registration: {e}")
+            raise
+
+    async def update_seller_dept(
+        self, seller_id: int, seller_price: Decimal, profit: Decimal
+    ) -> Seller:
+        try:
+            stmt = (
+                update(Seller)
+                .where(Seller.id == seller_id)
+                .values(
+                    current_debt=Seller.current_debt + seller_price,
+                    total_sale=Seller.total_sale + (seller_price + profit),
+                    total_profit=Seller.total_profit + profit,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+                .returning(Seller)
+            )
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+            return result.scalar_one()
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logging.error(f"Failed to update seller status: {e}")
             raise

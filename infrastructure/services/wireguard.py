@@ -11,6 +11,7 @@ from routeros_api.exceptions import (
 )
 
 from tgbot.models.wireguard import WireguardConfig, PurchaseData, WireguardPeerConfig
+from tgbot.services.utils import generate_qr_code
 
 
 class WireguardManager:
@@ -49,7 +50,7 @@ class WireguardManager:
         """Execute API command with retry logic."""
         for attempt in range(self._max_retries):
             try:
-                return func(*args, **kwargs)
+                return func(*args, **kwargs)  # Call the function directly
             except (RouterOsApiConnectionError, RouterOsApiCommunicationError) as e:
                 if attempt == self._max_retries - 1:
                     raise
@@ -59,26 +60,6 @@ class WireguardManager:
                 await asyncio.sleep(self._retry_delay)
                 await self._ensure_connected()  # Reconnect before retry
 
-    @staticmethod
-    async def _generate_keypair() -> Tuple[str, str]:
-        """Generate a WireGuard key pair."""
-        try:
-            # Generate private key
-            private_key = subprocess.check_output(["wg", "genkey"]).decode().strip()
-
-            # Generate public key
-            public_key = (
-                subprocess.check_output(["wg", "pubkey"], input=private_key.encode())
-                .decode()
-                .strip()
-            )
-
-            return private_key, public_key
-
-        except Exception as e:
-            logging.error(f"Failed to generate keypair: {e}")
-            raise
-
     async def _find_available_ip(self, api, subnet: str) -> str:
         """Find an available IP address in the given subnet."""
         try:
@@ -86,7 +67,7 @@ class WireguardManager:
             peer_resource = api.get_resource("/interface/wireguard/peers")
 
             # Get existing peers
-            existing_peers = await self._execute_api_command(api, peer_resource.get)
+            existing_peers = await self._execute_api_command(peer_resource.get)
 
             # Extract used IPs
             used_ips = set()
@@ -129,9 +110,7 @@ class WireguardManager:
             }
 
             # Add the peer
-            result = await self._execute_api_command(
-                api, peer_resource.add, **peer_data
-            )
+            result = await self._execute_api_command(peer_resource.add, **peer_data)
 
             # Convert result to dictionary if needed
             if hasattr(result, "get"):
@@ -146,6 +125,26 @@ class WireguardManager:
 
         except Exception as e:
             logging.error(f"Failed to add WireGuard peer: {e}")
+            raise
+
+    @staticmethod
+    async def _generate_keypair() -> Tuple[str, str]:
+        """Generate a WireGuard key pair."""
+        try:
+            # Generate private key
+            private_key = subprocess.check_output(["wg", "genkey"]).decode().strip()
+
+            # Generate public key
+            public_key = (
+                subprocess.check_output(["wg", "pubkey"], input=private_key.encode())
+                .decode()
+                .strip()
+            )
+
+            return private_key, public_key
+
+        except Exception as e:
+            logging.error(f"Failed to generate keypair: {e}")
             raise
 
     async def _find_peer_by_comment(
@@ -238,4 +237,63 @@ class WireguardManager:
 
         except Exception as e:
             logging.error(f"Failed to generate client config: {e}")
+            raise
+
+    async def create_peer(
+        self, interface_name: str, purchase_data: PurchaseData
+    ) -> tuple[WireguardPeerConfig, str, str]:
+        """
+        Create a new WireGuard peer configuration.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            purchase_data: Purchase data for peer identification
+
+        Returns:
+            Tuple of (WireguardPeerConfig, config_file, qr_code)
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Generate WireGuard keypair
+            private_key, public_key = await self._generate_keypair()
+
+            # Find available IP address
+            available_ip = await self._find_available_ip(api, self.config.subnet)
+
+            # Generate peer comment
+            peer_comment = await self._generate_peer_comment(
+                purchase_data, available_ip
+            )
+
+            # Create peer configuration object
+            peer_config = WireguardPeerConfig(
+                interface_name=interface_name,
+                private_key=private_key,
+                public_key=public_key,
+                allowed_ip=available_ip,
+                comment=peer_comment,
+            )
+
+            # Add peer to router
+            await self._add_peer(api, peer_config)
+
+            # Generate client configuration
+            server_config = {
+                "dns_servers": self.config.dns_servers,
+                "public_key": self.config.public_key,
+                "allowed_ips": self.config.allowed_ips,
+                "endpoint": f"{self.config.endpoint}",
+            }
+            config_file = await self._generate_client_config(server_config, peer_config)
+
+            # Generate QR code
+            qr_code = await generate_qr_code(config_file)
+
+            return peer_config, config_file, qr_code
+
+        except Exception as e:
+            logging.error(f"Failed to create WireGuard peer: {e}")
             raise

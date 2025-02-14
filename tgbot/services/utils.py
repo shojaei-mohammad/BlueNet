@@ -154,10 +154,6 @@ async def generate_qr_code(data: str) -> str:
     url = "https://api.qrcode-monkey.com/qr/custom"
 
     try:
-        # Upload the image and get the file identifier
-        uploaded_image_identifier = await upload_image()
-        if not uploaded_image_identifier:
-            raise Exception("failed to upload image")
 
         payload = {
             "config": {
@@ -182,7 +178,6 @@ async def generate_qr_code(data: str) -> str:
                 "gradientColor2": "010536",
                 "gradientType": "radial",
                 "gradientOnEyes": False,
-                "logo": uploaded_image_identifier,
             },
             "size": 300,
             "download": "imageUrl",

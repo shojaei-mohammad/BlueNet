@@ -44,6 +44,9 @@ class Seller(Base, TableNameMixin, TimestampMixin):
     current_debt: Mapped[Decimal] = mapped_column(
         DECIMAL(precision=16, scale=2), server_default="0", index=True
     )
+    total_sale: Mapped[Decimal] = mapped_column(
+        DECIMAL(precision=16, scale=2), server_default="0"
+    )
     total_profit: Mapped[Decimal] = mapped_column(
         DECIMAL(precision=16, scale=2), server_default="0"
     )

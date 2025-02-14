@@ -22,7 +22,9 @@ class Interface(Base, TableNameMixin, TimestampMixin):
     country_id: Mapped[UUID] = mapped_column(ForeignKey("countries.id"), index=True)
     interface_name: Mapped[str] = mapped_column(String(50))
     public_key: Mapped[str] = mapped_column(String(255))
-    listen_port: Mapped[int] = mapped_column(Integer)
+    dns_servers: Mapped[str] = mapped_column(String, server_default="1.1.1.1,8.8.8.8")
+    allowed_ips: Mapped[str] = mapped_column(String, server_default="0.0.0.0/0, ::/0")
+    endpoint: Mapped[str] = mapped_column(String)
     network_subnet: Mapped[str] = mapped_column(String(18))
     service_type: Mapped[str] = mapped_column(
         Enum(ServiceType, name="interface_types"), index=True

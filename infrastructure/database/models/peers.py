@@ -15,11 +15,11 @@ class Peer(Base, TableNameMixin, TimestampMixin):
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
+    public_id: Mapped[str] = mapped_column(String, index=True)
     private_key: Mapped[str] = mapped_column(String(255))
     public_key: Mapped[str] = mapped_column(String(255))
     allocated_ip: Mapped[str] = mapped_column(String(15))
     dns_servers: Mapped[str] = mapped_column(String(255))
-    qr_code: Mapped[str] = mapped_column(String)
     end_point: Mapped[str] = mapped_column(String)
     config_file: Mapped[str] = mapped_column(String)
     peer_comment: Mapped[str] = mapped_column(String(255), unique=True, index=True)

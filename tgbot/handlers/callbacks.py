@@ -1,3 +1,4 @@
+# tgbot/handlers/callbacks.py
 import logging
 
 from aiogram import Router
@@ -7,8 +8,10 @@ from aiogram.types import CallbackQuery
 
 from infrastructure.database.models.sellers import Seller
 from infrastructure.database.repo.requests import RequestsRepo
-from tgbot.handlers.callbacks.profile import handle_my_profile
-from tgbot.handlers.callbacks.tariffs import (
+from tgbot.config import Config
+from tgbot.handlers.helper.profile import handle_my_profile
+from tgbot.handlers.helper.purchase import handle_purchase
+from tgbot.handlers.helper.tariffs import (
     handle_dynamic_tariffs,
     handle_fixed_tariffs,
     handle_fixed_country,
@@ -23,6 +26,7 @@ async def default_callback_query(
     callback: CallbackQuery,
     state: FSMContext,
     repo: RequestsRepo,
+    config: Config,
     seller: Seller,
 ):
     try:
@@ -43,7 +47,8 @@ async def default_callback_query(
         elif callback_data.startswith("fixed_country_"):
             await handle_fixed_country(callback, repo)
         elif callback_data.startswith("purchase_"):
-            pass
+
+            await handle_purchase(callback, repo, config.tg_bot.admin_ids, seller)
         else:
             logging.warning(f"Undefined callback: {callback_data}")
             await callback.answer(text="منو تعریف نشده است.")

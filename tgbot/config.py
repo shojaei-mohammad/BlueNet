@@ -35,6 +35,14 @@ class TgBot(BaseSettings, env_prefix="TGBOT_"):
     support_link: str
 
 
+class WG(BaseSettings, env_prefix="WG_"):
+    """
+    Creates the TgBot object from environment variables.
+    """
+
+    dns_servers: str
+
+
 class DbConfig(BaseSettings, env_prefix="DB_"):
     """
     Database configuration class.
@@ -132,6 +140,7 @@ class Config(BaseModel):
     tg_bot: TgBot
     db: DbConfig
     redis: RedisConfig
+    wg: WG
 
 
 def load_config(env_file: Optional[str] = None):
@@ -177,6 +186,7 @@ def load_config(env_file: Optional[str] = None):
             tg_bot=TgBot(_env_file=env_file),
             db=DbConfig(_env_file=env_file),
             redis=RedisConfig(_env_file=env_file),
+            wg=WG(_env_file=env_file),
         )
         logging.info(f"Configuration loaded from {env_file_path}")
         return config

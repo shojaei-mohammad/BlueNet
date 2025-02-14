@@ -32,7 +32,9 @@ class Service(Base, TableNameMixin, TimestampMixin):
     seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), index=True)
     tariff_id: Mapped[UUID] = mapped_column(ForeignKey("tariffs.id"))
     interface_id: Mapped[UUID] = mapped_column(ForeignKey("interfaces.id"))
-    peer_id: Mapped[UUID] = mapped_column(ForeignKey("peers.id"), index=True)
+    peer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("peers.id"), index=True, nullable=True
+    )
 
     purchase_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     activation_date: Mapped[Optional[datetime]] = mapped_column(
