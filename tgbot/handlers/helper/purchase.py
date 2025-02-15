@@ -1,15 +1,19 @@
+# tgbot/handlers/helper/purchase.py
+import asyncio
 import logging
+from asyncio import CancelledError
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 from uuid import UUID
 
 from aiogram import html
+from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
 from aiogram.types import CallbackQuery
 
 from infrastructure.database.models import Seller, ServiceType, Service
 from infrastructure.database.repo.requests import RequestsRepo
 from infrastructure.services.purchase import PurchaseService
 from tgbot.services.utils import convert_to_shamsi, format_currency
-
-logger = logging.getLogger(__name__)
 
 
 async def notify_admins(
@@ -19,6 +23,7 @@ async def notify_admins(
     Notify administrators about a new service purchase.
 
     Args:
+        public_id:
         bot: Telegram bot instance
         admin_ids: List of admin Telegram IDs
         service: Service instance containing purchase details
@@ -37,23 +42,23 @@ async def notify_admins(
             f"{html.bold('وضعیت:')} {service.status.value}"
         )
 
-        logger.info(
+        logging.info(
             f"Sending purchase notification to {len(admin_ids)} admins for service {service.id}"
         )
 
         for admin_id in admin_ids:
             try:
                 await bot.send_message(admin_id, admin_message, parse_mode="HTML")
-                logger.debug(
+                logging.debug(
                     f"Successfully notified admin {admin_id} about service {service.id}"
                 )
             except Exception as e:
-                logger.error(
+                logging.error(
                     f"Failed to notify admin {admin_id}: {str(e)}", exc_info=True
                 )
 
     except Exception as e:
-        logger.error(f"Error in notify_admins: {str(e)}", exc_info=True)
+        logging.error(f"Error in notify_admins: {str(e)}", exc_info=True)
 
 
 async def handle_purchase(
@@ -71,29 +76,29 @@ async def handle_purchase(
         admin_ids: List of admin Telegram IDs
         seller: Seller instance making the purchase
     """
-    logger.info(f"Starting purchase process for seller {seller.id}")
+    logging.info(f"Starting purchase process for seller {seller.id}")
 
     try:
         # Extract and validate tariff ID
         try:
             tariff_id = UUID(callback.data.split("_")[1])
-            logger.debug(f"Processing purchase for tariff {tariff_id}")
+            logging.debug(f"Processing purchase for tariff {tariff_id}")
         except (ValueError, IndexError) as e:
-            logger.error(f"Invalid tariff ID format: {str(e)}")
+            logging.error(f"Invalid tariff ID format: {str(e)}")
             await callback.answer("فرمت شناسه تعرفه نامعتبر است.", show_alert=True)
             return
 
         # Get tariff details
         tariff = await repo.tariffs.get_tariff_details(tariff_id)
         if not tariff:
-            logger.warning(f"Tariff {tariff_id} not found")
+            logging.warning(f"Tariff {tariff_id} not found")
             await callback.answer("تعرفه مورد نظر یافت نشد.", show_alert=True)
             return
 
         # Check debt limit
         total_cost = tariff.price * (1 - seller.discount_percent / 100)
         if seller.current_debt + total_cost > seller.debt_limit:
-            logger.warning(
+            logging.warning(
                 f"Debt limit exceeded for seller {seller.id}. "
                 f"Current: {seller.current_debt}, New: {total_cost}, Limit: {seller.debt_limit}"
             )
@@ -114,7 +119,7 @@ async def handle_purchase(
         )
 
         if not interface:
-            logger.warning(
+            logging.warning(
                 f"No available interface found for service type {tariff.service_type}"
             )
             await callback.answer(
@@ -124,7 +129,7 @@ async def handle_purchase(
             return
 
         # Process purchase
-        logger.info(
+        logging.info(
             f"Processing purchase for seller {seller.id} with tariff {tariff_id}"
         )
         purchase_service = PurchaseService(repo)
@@ -152,13 +157,189 @@ async def handle_purchase(
             document=config_document, caption="فایل کانفیگ VPN"
         )
 
-        logger.info(f"Successfully completed purchase process for service {service.id}")
+        logging.info(
+            f"Successfully completed purchase process for service {service.id}"
+        )
 
     except ValueError as e:
-        logger.error(f"Validation error in purchase: {str(e)}", exc_info=True)
+        logging.error(f"Validation error in purchase: {str(e)}", exc_info=True)
         await callback.answer(str(e), show_alert=True)
     except Exception as e:
-        logger.error(f"Error processing purchase: {str(e)}", exc_info=True)
+        logging.error(f"Error processing purchase: {str(e)}", exc_info=True)
         await callback.answer(
             "خطا در پردازش خرید. لطفاً دوباره تلاش کنید.", show_alert=True
         )
+
+
+@asynccontextmanager
+async def show_loading_status(
+    message, initial_text: str = "⏳ در حال پردازش..."
+) -> AsyncGenerator:
+    """
+    Context manager to show loading status while processing a request.
+
+    Args:
+        message: The message object to respond to
+        initial_text: The initial loading message to show
+
+    Raises:
+        TelegramAPIError: If there's an API error when sending messages
+        ValueError: If the message parameters are invalid
+    """
+    loading_message = None
+    task = None
+    logger = logging.getLogger(__name__)
+
+    async def update_chat_action():
+        while True:
+            try:
+                await message.bot.send_chat_action(
+                    chat_id=message.chat.id, action="typing"
+                )
+                await asyncio.sleep(4)  # Send new action every 4 seconds
+            except TelegramBadRequest as e:
+                logger.warning(f"Bad request while sending chat action: {e}")
+                break
+            except TelegramAPIError as e:
+                logger.error(f"Telegram API error while sending chat action: {e}")
+                break
+            except CancelledError:
+                # Normal cancellation, no need to log
+                break
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error in chat action loop: {e}", exc_info=True
+                )
+                break
+
+    try:
+        # Show initial loading message
+        loading_message = await message.answer(initial_text)
+
+        # Start continuous chat action
+        task = asyncio.create_task(update_chat_action())
+        yield
+
+    finally:
+        # Clean up task
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except CancelledError:
+                pass  # Task cancellation is expected
+            except Exception as e:
+                logger.error(
+                    f"Error while cancelling chat action task: {e}", exc_info=True
+                )
+
+        # Clean up loading message
+        if loading_message:
+            try:
+                await loading_message.delete()
+            except TelegramBadRequest as e:
+                logger.warning(
+                    f"Could not delete loading message (might be already deleted): {e}"
+                )
+            except TelegramAPIError as e:
+                logger.error(f"Telegram API error while deleting loading message: {e}")
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error while deleting loading message: {e}",
+                    exc_info=True,
+                )
+
+
+# Modified handle_bulk_purchase function
+async def handle_bulk_purchase(
+    callback: CallbackQuery,
+    repo: RequestsRepo,
+    admin_ids: list[int],
+    seller: Seller,
+    quantity: int,
+) -> None:
+    """Handle bulk purchase of multiple dynamic IPs"""
+
+    # Answer callback immediately to prevent timeout
+    await callback.answer("⏳ در حال پردازش درخواست شما...")
+
+    async with show_loading_status(callback.message, "⏳ در حال ایجاد سرویس‌ها..."):
+        try:
+            tariff_id = UUID(callback.data.split("_")[1])
+            tariff = await repo.tariffs.get_tariff_details(tariff_id)
+
+            if not tariff:
+                await callback.message.answer("تعرفه مورد نظر یافت نشد.")
+                return
+
+            # Calculate total cost
+            total_cost = tariff.price * quantity * (1 - seller.discount_percent / 100)
+
+            if seller.current_debt + total_cost > seller.debt_limit:
+                await callback.message.answer(
+                    "این خرید باعث می‌شود بدهی شما از سقف مجاز فراتر رود. لطفاً بدهی خود را تسویه کنید."
+                )
+                return
+
+            # Find suitable interface
+            interface = await repo.interfaces.get_available_interface(
+                service_type=tariff.service_type,
+                country_code=None,
+            )
+
+            if not interface:
+                await callback.message.answer(
+                    "در حال حاضر سرور مناسب با ظرفیت کافی در دسترس نیست."
+                )
+                return
+
+            # Process multiple purchases
+            purchase_service = PurchaseService(repo)
+            configs = []
+            services = []
+
+            for i in range(quantity):
+                # Update loading message with progress
+                await callback.message.edit_text(
+                    f"⏳ در حال ایجاد سرویس {i + 1} از {quantity}..."
+                )
+
+                service, qr_code, config_document, public_id = (
+                    await purchase_service.process_purchase(
+                        seller=seller, tariff=tariff, interface=interface
+                    )
+                )
+                configs.append((qr_code, config_document))
+                services.append((service, public_id))
+
+            # Send confirmation and configs
+            await callback.message.answer(
+                f"✅ خرید {quantity} سرویس با موفقیت انجام شد!\n"
+                f"تعرفه: {tariff.description}\n"
+                f"مبلغ کل: {format_currency(total_cost, convert_to_farsi=True)} تومان\n"
+                f"مدت: {tariff.duration_days} روز"
+            )
+
+            # Send configs with progress indication
+            for i, (qr_code, config_document) in enumerate(configs, 1):
+                await callback.message.answer(f"🔹 ارسال کانفیگ {i} از {quantity}:")
+                await callback.message.answer_photo(
+                    photo=qr_code, caption=f"کد QR کانفیگ {i}"
+                )
+                await callback.message.answer_document(
+                    document=config_document, caption=f"فایل کانفیگ {i}"
+                )
+                if i % 5 == 0:  # Add delay every 5 configs
+                    await asyncio.sleep(1)
+
+            # Notify admins
+            for service, public_id in services:
+                await notify_admins(
+                    callback.message.bot, admin_ids, service, seller, public_id
+                )
+
+        except Exception as e:
+            logging.error(f"Error processing bulk purchase: {str(e)}", exc_info=True)
+            await callback.message.answer(
+                "❌ خطا در پردازش خرید. لطفاً دوباره تلاش کنید."
+            )
