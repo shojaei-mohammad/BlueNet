@@ -113,6 +113,8 @@ async def default_callback_query(
             await callback.message.answer(
                 "لطفاً تعداد مورد نظر را وارد کنید (حداکثر 50):"
             )
+        elif callback_data == "services":
+            pass
         else:
             logging.warning(f"Undefined callback: {callback_data}")
             await callback.answer(text="منو تعریف نشده است.")

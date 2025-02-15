@@ -56,7 +56,7 @@ menu_structure = {
             {"text": "ای پی ثابت", "callback_data": "fixed"},
         ],
     },
-    "my_usrs": {
+    "my_services": {
         "text": "🔍 یکی از موارد زیر را انتخاب کنید.",
         "row_width": [1, 1, 1],
         "back": "mng_usrs",
