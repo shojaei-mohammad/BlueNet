@@ -224,3 +224,56 @@ class ServiceRepo(BaseRepo):
                 exc_info=True,
             )
             raise
+
+    async def get_service_with_peer(self, service_id: UUID) -> Optional[Service]:
+        """
+        Get service with related peer information.
+
+        Args:
+            service_id: UUID of the service to retrieve
+
+        Returns:
+            Service object with peer information if found, None otherwise
+
+        Raises:
+            SQLAlchemyError: If there's a database error
+        """
+        try:
+            logging.debug(
+                f"Fetching service with peer information for service_id: {service_id}"
+            )
+
+            query = (
+                select(Service)
+                .options(
+                    joinedload(Service.peer),
+                    joinedload(Service.tariff),
+                    joinedload(Service.interface),
+                )
+                .where(Service.id == service_id)
+                .where(Service.status != ServiceStatus.DELETED)
+            )
+
+            result = await self.session.execute(query)
+            service = result.scalar_one_or_none()
+
+            if service:
+                logging.info(f"Retrieved service {service_id}:")
+            else:
+                logging.warning(f"Service not found with id: {service_id}")
+
+            return service
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error while fetching service {service_id} with peer: {str(e)}",
+                exc_info=True,
+            )
+            raise e
+
+        except Exception as e:
+            logging.error(
+                f"Unexpected error while fetching service {service_id} with peer: {str(e)}",
+                exc_info=True,
+            )
+            raise e

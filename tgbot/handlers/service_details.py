@@ -5,7 +5,12 @@ from uuid import UUID
 
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    Message,
+    BufferedInputFile,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from infrastructure.database.models import ServiceStatus, Service
@@ -16,6 +21,7 @@ from tgbot.services.utils import (
     convert_english_digits_to_farsi,
     format_currency,
     convert_to_shamsi,
+    generate_qr_code,
 )
 from tgbot.states.service import ServiceStates
 
@@ -28,7 +34,7 @@ SERVICE_ACTION_PREFIX = {
     "DISABLE": "service_disable_",
     "RESET_KEY": "service_reset_",
     "RENEW": "service_renew_",
-    "CONFIG": "service_config_",
+    "GET_CONFIG": "service_config_",
     "SET_NAME": "service_name_",
 }
 
@@ -60,7 +66,7 @@ def create_service_details_keyboard(service: Service) -> InlineKeyboardMarkup:
     )
     builder.button(
         text="📁 دریافت کانفیگ",
-        callback_data=f"{SERVICE_ACTION_PREFIX['CONFIG']}{service.id}",
+        callback_data=f"{SERVICE_ACTION_PREFIX['GET_CONFIG']}{service.id}",
     )
 
     # Third row: Set name
@@ -271,3 +277,51 @@ async def finish_set_custom_name(
         logging.error(f"Error in finish_set_custom_name: {e}", exc_info=True)
         await message.answer("❌ خطا در تنظیم نام دلخواه.")
         await state.clear()
+
+
+@service_details_router.callback_query(
+    F.data.startswith(SERVICE_ACTION_PREFIX["GET_CONFIG"])
+)
+async def handle_get_config(
+    callback: CallbackQuery, seller: Seller, repo: RequestsRepo
+) -> None:
+    try:
+        service_id = UUID(
+            callback.data.removeprefix(SERVICE_ACTION_PREFIX["GET_CONFIG"])
+        )
+        service = await repo.services.get_service_with_peer(service_id)
+
+        if not service or service.seller_id != seller.id:
+            await callback.answer("❌ سرویس مورد نظر یافت نشد.", show_alert=True)
+            return
+
+        if not service.peer:
+            await callback.answer(
+                "❌ اطلاعات پیکربندی برای این سرویس موجود نیست.", show_alert=True
+            )
+            return
+
+        # Generate QR code
+        qr_code_url = await generate_qr_code(service.peer.config_file)
+
+        # Create config file document
+        config_document = BufferedInputFile(
+            file=service.peer.config_file.encode("utf-8"),
+            filename=f"wireguard_{service.peer.public_id}.conf",
+        )
+
+        await callback.message.answer_document(
+            document=config_document,
+            caption=f"🔰 فایل پیکربندی سرویس {service.peer.public_id}",
+        )
+
+        await callback.message.answer_photo(
+            photo=qr_code_url,
+            caption=f" 🔄 کد QR پیکربندی سرویس {service.peer.public_id}",
+        )
+
+        await callback.answer()
+
+    except Exception as e:
+        logging.error(f"Error in handle_get_config: {e}", exc_info=True)
+        await callback.answer("❌ خطا در دریافت پیکربندی سرویس.", show_alert=True)
