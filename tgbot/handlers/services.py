@@ -46,7 +46,7 @@ def create_services_keyboard(
 
         builder.add(
             InlineKeyboardButton(
-                text=service_info, callback_data=f"service_{service.id}"
+                text=service_info, callback_data=f"service_view_{service.id}"
             )
         )
 

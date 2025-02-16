@@ -182,3 +182,45 @@ class ServiceRepo(BaseRepo):
                 exc_info=True,
             )
             raise
+
+    async def update_service_custom_name(
+        self, service_id: UUID, custom_name: str
+    ) -> bool:
+        """
+        Update the custom name of a service.
+
+        Args:
+            service_id: The ID of the service to update
+            custom_name: The new custom name to set
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            # Create update statement
+            stmt = (
+                update(Service)
+                .where(Service.id == service_id)
+                .values(
+                    custom_name=custom_name,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+                .returning(Service.id)
+            )
+
+            # Execute update
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+
+            # Check if any row was updated
+            updated = result.scalar_one_or_none() is not None
+
+            return updated
+
+        except Exception as e:
+            await self.session.rollback()
+            logging.error(
+                f"Error updating service {service_id} custom name to {custom_name}: {e}",
+                exc_info=True,
+            )
+            raise

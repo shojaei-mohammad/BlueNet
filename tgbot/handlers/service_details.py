@@ -3,8 +3,9 @@
 import logging
 from uuid import UUID
 
-from aiogram import Router
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup
+from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from infrastructure.database.models import ServiceStatus, Service
@@ -16,12 +17,13 @@ from tgbot.services.utils import (
     format_currency,
     convert_to_shamsi,
 )
+from tgbot.states.service import ServiceStates
 
 service_details_router = Router()
 
 # Callback data prefixes for different actions
 SERVICE_ACTION_PREFIX = {
-    "VIEW": "service_",
+    "VIEW": "service_view_",
     "ENABLE": "service_enable_",
     "DISABLE": "service_disable_",
     "RESET_KEY": "service_reset_",
@@ -130,15 +132,14 @@ def format_service_details(service: Service) -> str:
     )
 
 
-@service_details_router.callback_query(
-    lambda c: c.data.startswith(SERVICE_ACTION_PREFIX["VIEW"])
-)
+# For viewing service details
+@service_details_router.callback_query(F.data.startswith(SERVICE_ACTION_PREFIX["VIEW"]))
 async def show_service_details(
     callback: CallbackQuery, seller: Seller, repo: RequestsRepo
 ):
     """Handle service details view."""
     try:
-        service_id = UUID(callback.data.replace(SERVICE_ACTION_PREFIX["VIEW"], ""))
+        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["VIEW"]))
         service = await repo.services.get_service(service_id)
 
         if not service or service.seller_id != seller.id:
@@ -155,14 +156,14 @@ async def show_service_details(
         await callback.answer("❌ خطا در نمایش جزئیات سرویس.", show_alert=True)
 
 
-# Example of one action handler
+# For enabling service
 @service_details_router.callback_query(
-    lambda c: c.data.startswith(SERVICE_ACTION_PREFIX["ENABLE"])
+    F.data.startswith(SERVICE_ACTION_PREFIX["ENABLE"])
 )
 async def enable_service(callback: CallbackQuery, seller: Seller, repo: RequestsRepo):
     """Handle service enable action."""
     try:
-        service_id = UUID(callback.data.replace(SERVICE_ACTION_PREFIX["ENABLE"], ""))
+        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["ENABLE"]))
         service = await repo.services.get_service(service_id)
 
         if not service or service.seller_id != seller.id:
@@ -184,3 +185,89 @@ async def enable_service(callback: CallbackQuery, seller: Seller, repo: Requests
     except Exception as e:
         logging.error(f"Error in enable_service: {e}", exc_info=True)
         await callback.answer("❌ خطا در فعال‌سازی سرویس.", show_alert=True)
+
+
+# For setting custom name
+@service_details_router.callback_query(
+    F.data.startswith(SERVICE_ACTION_PREFIX["SET_NAME"])
+)
+async def start_set_custom_name(
+    callback: CallbackQuery, state: FSMContext, seller: Seller, repo: RequestsRepo
+):
+    """Start the process of setting a custom name."""
+    try:
+        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["SET_NAME"]))
+        service = await repo.services.get_service(service_id)
+
+        if not service or service.seller_id != seller.id:
+            await callback.answer("❌ سرویس مورد نظر یافت نشد.", show_alert=True)
+            return
+
+        # Store service_id and prompt_message_id in state
+        await state.set_state(ServiceStates.waiting_for_name)
+
+        # Send prompt message and store its message_id
+        prompt_message = await callback.message.answer(
+            "✏️ لطفاً نام دلخواه جدید را وارد کنید:"
+        )
+        await state.update_data(
+            service_id=str(service_id), prompt_message_id=prompt_message.message_id
+        )
+
+        await callback.answer()
+
+    except Exception as e:
+        logging.error(f"Error in start_set_custom_name: {e}", exc_info=True)
+        await callback.answer("❌ خطا در شروع فرآیند تنظیم نام.", show_alert=True)
+
+
+@service_details_router.message(ServiceStates.waiting_for_name)
+async def finish_set_custom_name(
+    message: Message, state: FSMContext, seller: Seller, repo: RequestsRepo
+):
+    """Complete the process of setting a custom name."""
+    try:
+        # Get data from state
+        data = await state.get_data()
+        service_id = UUID(data["service_id"])
+        prompt_message_id = data.get("prompt_message_id")
+
+        # Get service to verify ownership
+        service = await repo.services.get_service(service_id)
+        if not service or service.seller_id != seller.id:
+            await message.answer("❌ سرویس مورد نظر یافت نشد.")
+            await state.clear()
+            return
+
+        # Update custom name
+        await repo.services.update_service_custom_name(service_id, message.text)
+
+        # Delete the prompt message if we have its ID
+        if prompt_message_id:
+            try:
+                await message.bot.delete_message(message.chat.id, prompt_message_id)
+            except Exception as e:
+                logging.warning(f"Failed to delete prompt message: {e}")
+
+        # Delete the user's input message
+        try:
+            await message.delete()
+        except Exception as e:
+            logging.warning(f"Failed to delete user input message: {e}")
+
+        # Clear state
+        await state.clear()
+
+        # Get updated service
+        service = await repo.services.get_service(service_id)
+
+        # Send confirmation with updated service details
+        await message.answer(
+            "✅ نام دلخواه با موفقیت تنظیم شد.\n\n" + format_service_details(service),
+            reply_markup=create_service_details_keyboard(service),
+        )
+
+    except Exception as e:
+        logging.error(f"Error in finish_set_custom_name: {e}", exc_info=True)
+        await message.answer("❌ خطا در تنظیم نام دلخواه.")
+        await state.clear()
