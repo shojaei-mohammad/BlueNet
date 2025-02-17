@@ -64,4 +64,6 @@ class Seller(Base, TableNameMixin, TimestampMixin):
 
     # Relationships
     services: Mapped[list["Service"]] = relationship("Service", back_populates="seller")
-    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="seller")
+    transactions: Mapped[list["Transaction"]] = relationship(
+        "Transaction", back_populates="seller"
+    )
