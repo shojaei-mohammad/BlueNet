@@ -8,8 +8,6 @@ from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 from infrastructure.database.models import Tariff, ServiceType
 from infrastructure.database.repo.base import BaseRepo
 
-logger = logging.getLogger(__name__)
-
 
 class TariffRepo(BaseRepo):
     async def get_tariffs_by_service_type(
