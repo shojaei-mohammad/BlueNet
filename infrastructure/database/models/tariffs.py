@@ -32,5 +32,5 @@ class Tariff(Base, TableNameMixin, TimestampMixin):
     description: Mapped[str] = mapped_column(String(255))
 
     # Relationships
-    services: Mapped[list["Service"]] = relationship(back_populates="tariff")
-    country: Mapped["Country"] = relationship(back_populates="tariffs")
+    services: Mapped[list["Service"]] = relationship("Service", back_populates="tariff")
+    country: Mapped["Country"] = relationship("Country", back_populates="tariffs")

@@ -25,4 +25,6 @@ class Peer(Base, TableNameMixin, TimestampMixin):
     peer_comment: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 
     # Relationships
-    service: Mapped["Service"] = relationship(back_populates="peer", uselist=False)
+    service: Mapped["Service"] = relationship(
+        "Service", back_populates="peer", uselist=False
+    )

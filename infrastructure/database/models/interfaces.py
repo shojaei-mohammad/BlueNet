@@ -35,6 +35,8 @@ class Interface(Base, TableNameMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true(), index=True)
 
     # Relationships
-    router: Mapped["Router"] = relationship(back_populates="interfaces")
-    country: Mapped["Country"] = relationship(back_populates="interfaces")
-    services: Mapped[list["Service"]] = relationship(back_populates="interface")
+    router: Mapped["Router"] = relationship("Router", back_populates="interfaces")
+    country: Mapped["Country"] = relationship("Country", back_populates="interfaces")
+    services: Mapped[list["Service"]] = relationship(
+        "Service", back_populates="interface"
+    )

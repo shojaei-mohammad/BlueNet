@@ -23,5 +23,7 @@ class Country(Base, TableNameMixin, TimestampMixin):
     is_available: Mapped[bool] = mapped_column(Boolean, server_default=true())
 
     # Relationships
-    tariffs: Mapped[list["Tariff"]] = relationship(back_populates="country")
-    interfaces: Mapped[list["Interface"]] = relationship(back_populates="country")
+    tariffs: Mapped[list["Tariff"]] = relationship("Tariff", back_populates="country")
+    interfaces: Mapped[list["Interface"]] = relationship(
+        "Interface", back_populates="country"
+    )

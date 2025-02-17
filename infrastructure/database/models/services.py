@@ -61,8 +61,12 @@ class Service(Base, TableNameMixin, TimestampMixin):
     )
     custom_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Relationships
-    seller: Mapped["Seller"] = relationship(back_populates="services")
-    tariff: Mapped["Tariff"] = relationship(back_populates="services")
-    interface: Mapped["Interface"] = relationship(back_populates="services")
-    peer: Mapped["Peer"] = relationship(back_populates="service", uselist=False)
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="service")
+    seller: Mapped["Seller"] = relationship("Seller", back_populates="services")
+    tariff: Mapped["Tariff"] = relationship("Tariff", back_populates="services")
+    interface: Mapped["Interface"] = relationship(
+        "Interface", back_populates="services"
+    )
+    peer: Mapped["Peer"] = relationship("Peer", back_populates="service", uselist=False)
+    transactions: Mapped[list["Transaction"]] = relationship(
+        "Transaction", back_populates="service"
+    )

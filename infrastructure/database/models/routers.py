@@ -25,4 +25,4 @@ class Router(Base, TableNameMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true())
 
     # Relationships
-    interfaces: Mapped[list["Interface"]] = relationship(back_populates="router")
+    interfaces: Mapped[list["Interface"]] = relationship("Interface", back_populates="router")
