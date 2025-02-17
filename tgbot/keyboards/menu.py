@@ -49,7 +49,7 @@ menu_structure = {
     "create_service": {
         "text": "🔒 یکی از موارد زیر را انتخاب کنید.",
         "row_width": [1, 1],
-        "back": "mng_usrs",
+        "back": "manage_services",
         "menu_type": "user",
         "options": [
             {"text": "ای پی داینامیک", "callback_data": "dynamic"},
@@ -59,7 +59,7 @@ menu_structure = {
     "my_services": {
         "text": "🔍 یکی از موارد زیر را انتخاب کنید.",
         "row_width": [1, 1, 1],
-        "back": "mng_usrs",
+        "back": "manage_services",
         "menu_type": "user",
         "options": [
             {"text": "📜 مشاهده همه کاربران", "callback_data": "services"},
