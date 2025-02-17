@@ -156,7 +156,9 @@ class WireguardManager:
             peer_resource = api.get_resource("/interface/wireguard/peers")
 
             # Get all peers
-            peers = await self._execute_api_command(api, peer_resource.get)
+            peers = await self._execute_api_command(
+                peer_resource.get
+            )  # Remove api parameter
 
             # Filter peers manually
             matching_peers = [
@@ -173,18 +175,31 @@ class WireguardManager:
             logging.error(f"Failed to find peer by comment: {e}")
             return None
 
+    @staticmethod
     async def _update_peer_status(
-        self, api, interface_name: str, peer_id: str, disabled: bool
+        api, interface_name: str, peer_id: str, disabled: bool
     ) -> bool:
         """Enable or disable a WireGuard peer."""
         try:
             # Get the Wireguard peers resource
             peer_resource = api.get_resource("/interface/wireguard/peers")
 
+            # Log the current state before update
+            current_state = peer_resource.get(id=peer_id)
+            logging.info(f"Current peer state before update: {current_state}")
+
             # Update peer status
-            await self._execute_api_command(
-                api, peer_resource.set, id=peer_id, disabled="yes" if disabled else "no"
-            )
+            update_params = {
+                ".id": peer_id,
+                "disabled": "true" if disabled else "false",
+            }
+            logging.info(f"Updating peer with parameters: {update_params}")
+
+            peer_resource.set(**update_params)
+
+            # Verify the new state
+            new_state = peer_resource.get(id=peer_id)
+            logging.info(f"New peer state after update: {new_state}")
 
             logging.info(
                 f"Successfully {'disabled' if disabled else 'enabled'} "
@@ -297,3 +312,87 @@ class WireguardManager:
         except Exception as e:
             logging.error(f"Failed to create WireGuard peer: {e}")
             raise
+
+    async def disable_peer(self, interface_name: str, peer_comment: str) -> bool:
+        """
+        Disable a WireGuard peer on the router.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer to disable
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return False
+
+            # Disable the peer
+            success = await self._update_peer_status(
+                api, interface_name, peer["id"], disabled=True
+            )
+
+            if success:
+                logging.info(f"Successfully disabled peer: {peer_comment}")
+                return True
+            else:
+                logging.error(f"Failed to disable peer: {peer_comment}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error disabling peer {peer_comment}: {e}")
+            return False
+        finally:
+            if self._client_pool:
+                self._client_pool.disconnect()
+
+    async def enable_peer(self, interface_name: str, peer_comment: str) -> bool:
+        """
+        Enable a WireGuard peer on the router.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer to enable
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return False
+
+            # Enable the peer
+            success = await self._update_peer_status(
+                api, interface_name, peer["id"], disabled=False
+            )
+
+            if success:
+                logging.info(f"Successfully enabled peer: {peer_comment}")
+                return True
+            else:
+                logging.error(f"Failed to enable peer: {peer_comment}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error enabling peer {peer_comment}: {e}")
+            return False
+        finally:
+            if self._client_pool:
+                self._client_pool.disconnect()

@@ -8,7 +8,7 @@ from sqlalchemy import insert, update, select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
 
-from infrastructure.database.models import Service, Peer, ServiceStatus
+from infrastructure.database.models import Service, ServiceStatus, Interface
 from infrastructure.database.repo.base import BaseRepo
 
 
@@ -117,7 +117,7 @@ class ServiceRepo(BaseRepo):
 
     async def get_service(self, service_id: UUID) -> Optional[Service]:
         """
-        Get a service by its ID with related peer information.
+        Get a service by its ID with all related information.
 
         Args:
             service_id: The ID of the service to retrieve
@@ -126,11 +126,13 @@ class ServiceRepo(BaseRepo):
             Service object if found, None otherwise
         """
         try:
-            # Create query joining Service with Peer
+            # Create query joining Service with all necessary relationships
             query = (
                 select(Service)
-                .outerjoin(Peer)
-                .options(selectinload(Service.peer))  # Eager load peer relationship
+                .options(
+                    selectinload(Service.peer),
+                    selectinload(Service.interface).selectinload(Interface.router),
+                )
                 .where(Service.id == service_id)
             )
 

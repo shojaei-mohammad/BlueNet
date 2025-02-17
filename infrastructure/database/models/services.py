@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 
 class ServiceStatus(enum.Enum):
+    UNUSED = "unused"
     INACTIVE = "inactive"
     ACTIVE = "active"
     EXPIRED = "expired"

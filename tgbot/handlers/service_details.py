@@ -16,6 +16,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from infrastructure.database.models import ServiceStatus, Service
 from infrastructure.database.models.sellers import Seller
 from infrastructure.database.repo.requests import RequestsRepo
+from infrastructure.services.wireguard import WireguardManager
+from tgbot.models.wireguard import WireguardConfig
 from tgbot.services.back_button import add_return_buttons
 from tgbot.services.utils import (
     convert_english_digits_to_farsi,
@@ -197,6 +199,7 @@ async def show_service_details(
 ):
     """Handle service details view."""
     try:
+        logging.info("show_service_details handler called")
         service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["VIEW"]))
         service = await repo.services.get_service(service_id)
 
@@ -214,37 +217,6 @@ async def show_service_details(
         await callback.answer("❌ خطا در نمایش جزئیات سرویس.", show_alert=True)
 
 
-# For enabling service
-@service_details_router.callback_query(
-    F.data.startswith(SERVICE_ACTION_PREFIX["ENABLE"])
-)
-async def enable_service(callback: CallbackQuery, seller: Seller, repo: RequestsRepo):
-    """Handle service enable action."""
-    try:
-        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["ENABLE"]))
-        service = await repo.services.get_service(service_id)
-
-        if not service or service.seller_id != seller.id:
-            await callback.answer("❌ سرویس مورد نظر یافت نشد.", show_alert=True)
-            return
-
-        # Enable the service
-        await repo.services.update_service_status(service_id, ServiceStatus.ACTIVE)
-
-        # Refresh service details
-        service = await repo.services.get_service(service_id)
-
-        await callback.message.edit_text(
-            text=format_service_details(service),
-            reply_markup=create_service_details_keyboard(service),
-        )
-        await callback.answer("✅ سرویس با موفقیت فعال شد.", show_alert=True)
-
-    except Exception as e:
-        logging.error(f"Error in enable_service: {e}", exc_info=True)
-        await callback.answer("❌ خطا در فعال‌سازی سرویس.", show_alert=True)
-
-
 # For setting custom name
 @service_details_router.callback_query(
     F.data.startswith(SERVICE_ACTION_PREFIX["SET_NAME"])
@@ -254,6 +226,7 @@ async def start_set_custom_name(
 ):
     """Start the process of setting a custom name."""
     try:
+        logging.info("start_set_custom_name handler called")
         service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["SET_NAME"]))
         service = await repo.services.get_service(service_id)
 
@@ -286,6 +259,7 @@ async def handle_get_config(
     callback: CallbackQuery, seller: Seller, repo: RequestsRepo
 ) -> None:
     try:
+        logging.info("handle_get_config handler called")
         service_id = UUID(
             callback.data.removeprefix(SERVICE_ACTION_PREFIX["GET_CONFIG"])
         )
@@ -325,3 +299,111 @@ async def handle_get_config(
     except Exception as e:
         logging.error(f"Error in handle_get_config: {e}", exc_info=True)
         await callback.answer("❌ خطا در دریافت پیکربندی سرویس.", show_alert=True)
+
+
+@service_details_router.callback_query(
+    F.data.startswith(SERVICE_ACTION_PREFIX["DISABLE"])
+)
+async def disable_service(callback: CallbackQuery, seller: Seller, repo: RequestsRepo):
+    """Handle service disable action."""
+    try:
+        logging.info("disable_service handler called")
+        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["DISABLE"]))
+        service = await repo.services.get_service(service_id)
+
+        if not service or service.seller_id != seller.id:
+            await callback.answer("❌ سرویس مورد نظر یافت نشد.", show_alert=True)
+            return
+
+        # Get WireGuard configuration
+        wg_config = WireguardConfig(
+            router_host=service.interface.router.hostname,
+            router_port=service.interface.router.api_port,
+            router_user=service.interface.router.username,
+            router_password=service.interface.router.password,
+            endpoint=service.interface.endpoint,
+            public_key=service.interface.public_key,
+            subnet=service.interface.network_subnet,
+            dns_servers=service.interface.dns_servers,
+            allowed_ips=service.interface.allowed_ips,
+        )
+
+        # Initialize WireGuard manager and disable peer
+        wg_manager = WireguardManager(wg_config)
+        success = await wg_manager.disable_peer(
+            service.interface.interface_name, service.peer.peer_comment
+        )
+
+        if success:
+            # Update service status in database
+            await repo.services.update_service_status(
+                service_id, ServiceStatus.INACTIVE
+            )
+
+            # Refresh service details
+            service = await repo.services.get_service(service_id)
+
+            await callback.message.edit_text(
+                text=format_service_details(service),
+                reply_markup=create_service_details_keyboard(service),
+            )
+            await callback.answer("✅ سرویس با موفقیت غیرفعال شد.", show_alert=True)
+        else:
+            await callback.answer("❌ خطا در غیرفعال‌سازی سرویس.", show_alert=True)
+
+    except Exception as e:
+        logging.error(f"Error in disable_service: {e}", exc_info=True)
+        await callback.answer("❌ خطا در غیرفعال‌سازی سرویس.", show_alert=True)
+
+
+@service_details_router.callback_query(
+    F.data.startswith(SERVICE_ACTION_PREFIX["ENABLE"])
+)
+async def enable_service(callback: CallbackQuery, seller: Seller, repo: RequestsRepo):
+    """Handle service enable action."""
+    try:
+        logging.info("Enable peer handler called")
+        service_id = UUID(callback.data.removeprefix(SERVICE_ACTION_PREFIX["ENABLE"]))
+        service = await repo.services.get_service(service_id)
+
+        if not service or service.seller_id != seller.id:
+            await callback.answer("❌ سرویس مورد نظر یافت نشد.", show_alert=True)
+            return
+
+        # Get WireGuard configuration
+        wg_config = WireguardConfig(
+            router_host=service.interface.router.hostname,
+            router_port=service.interface.router.api_port,
+            router_user=service.interface.router.username,
+            router_password=service.interface.router.password,
+            endpoint=service.interface.endpoint,
+            public_key=service.interface.public_key,
+            subnet=service.interface.network_subnet,
+            dns_servers=service.interface.dns_servers,
+            allowed_ips=service.interface.allowed_ips,
+        )
+
+        # Initialize WireGuard manager and enable peer
+        wg_manager = WireguardManager(wg_config)
+        success = await wg_manager.enable_peer(
+            service.interface.interface_name, service.peer.peer_comment
+        )
+
+        if success:
+            # Update service status in database
+            await repo.services.update_service_status(service_id, ServiceStatus.ACTIVE)
+
+            # Refresh service details
+            service = await repo.services.get_service(service_id)
+
+            await callback.message.edit_text(
+                text=format_service_details(service),
+                reply_markup=create_service_details_keyboard(service),
+            )
+            await callback.answer("✅ سرویس با موفقیت فعال شد.", show_alert=True)
+        else:
+            await callback.answer("❌ خطا در فعال‌سازی سرویس.", show_alert=True)
+
+    except Exception as e:
+        logging.error(f"Error in enable_service: {e}", exc_info=True)
+        await callback.answer("❌ خطا در فعال‌سازی سرویس.", show_alert=True)
