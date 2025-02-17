@@ -46,28 +46,28 @@ SERVICE_ACTION_PREFIX = {
 def create_service_details_keyboard(service: Service) -> InlineKeyboardMarkup:
     """Create keyboard for service details with all available actions."""
     builder = InlineKeyboardBuilder()
-
-    # First row: Status toggle and Reset key
-    if service.status == ServiceStatus.ACTIVE:
+    if service.status != ServiceStatus.UNUSED:
+        # First row: Status toggle and Reset key
+        if service.status == ServiceStatus.ACTIVE:
+            builder.button(
+                text="❌ غیرفعال کردن",
+                callback_data=f"{SERVICE_ACTION_PREFIX['DISABLE']}{service.id}",
+            )
+        else:
+            builder.button(
+                text="✅ فعال کردن",
+                callback_data=f"{SERVICE_ACTION_PREFIX['ENABLE']}{service.id}",
+            )
         builder.button(
-            text="❌ غیرفعال کردن",
-            callback_data=f"{SERVICE_ACTION_PREFIX['DISABLE']}{service.id}",
+            text="🔄 تعویض کلید",
+            callback_data=f"{SERVICE_ACTION_PREFIX['RESET_KEY']}{service.id}",
         )
-    else:
-        builder.button(
-            text="✅ فعال کردن",
-            callback_data=f"{SERVICE_ACTION_PREFIX['ENABLE']}{service.id}",
-        )
-    builder.button(
-        text="🔄 تعویض کلید",
-        callback_data=f"{SERVICE_ACTION_PREFIX['RESET_KEY']}{service.id}",
-    )
 
-    # Second row: Renew and Config
-    builder.button(
-        text="📅 تمدید",
-        callback_data=f"{SERVICE_ACTION_PREFIX['RENEW']}{service.id}",
-    )
+        # Second row: Renew and Config
+        builder.button(
+            text="📅 تمدید",
+            callback_data=f"{SERVICE_ACTION_PREFIX['RENEW']}{service.id}",
+        )
     builder.button(
         text="📁 دریافت کانفیگ",
         callback_data=f"{SERVICE_ACTION_PREFIX['GET_CONFIG']}{service.id}",
