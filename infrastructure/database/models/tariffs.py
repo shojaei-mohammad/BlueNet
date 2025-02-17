@@ -1,7 +1,7 @@
 # infrastructure/database/models/tariffs.py
 import enum
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import String, Enum, Integer, DECIMAL, text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,7 +24,7 @@ class Tariff(Base, TableNameMixin, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     service_type: Mapped[str] = mapped_column(Enum(ServiceType, name="service_types"))
-    country_code: Mapped[str] = mapped_column(
+    country_code: Mapped[Optional[str]] = mapped_column(
         String(2), ForeignKey("countries.code"), nullable=True
     )
     duration_days: Mapped[int] = mapped_column(Integer)

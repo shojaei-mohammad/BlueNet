@@ -32,11 +32,11 @@ class Service(Base, TableNameMixin, TimestampMixin):
     seller_id: Mapped[int] = mapped_column(ForeignKey("sellers.id"), index=True)
     tariff_id: Mapped[UUID] = mapped_column(ForeignKey("tariffs.id"))
     interface_id: Mapped[UUID] = mapped_column(ForeignKey("interfaces.id"))
-    peer_id: Mapped[UUID] = mapped_column(
+    peer_id: Mapped[Optional[UUID]] = mapped_column(
         ForeignKey("peers.id"), index=True, nullable=True
     )
 
-    purchase_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
+    purchase_date: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
     activation_date: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, index=True
     )
@@ -53,9 +53,15 @@ class Service(Base, TableNameMixin, TimestampMixin):
     )
     original_price: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2))
     seller_price: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2))
-    total_bytes: Mapped[int] = mapped_column(server_default="0", nullable=True)
-    download_bytes: Mapped[int] = mapped_column(server_default="0", nullable=True)
-    upload_bytes: Mapped[int] = mapped_column(server_default="0", nullable=True)
+    total_bytes: Mapped[Optional[int]] = mapped_column(
+        server_default="0", nullable=True
+    )
+    download_bytes: Mapped[Optional[int]] = mapped_column(
+        server_default="0", nullable=True
+    )
+    upload_bytes: Mapped[Optional[int]] = mapped_column(
+        server_default="0", nullable=True
+    )
     last_handshake: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )

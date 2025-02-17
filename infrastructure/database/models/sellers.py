@@ -38,7 +38,7 @@ class Seller(Base, TableNameMixin, TimestampMixin):
     user_role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role"), server_default=UserRole.RESELLER.name
     )
-    debt_limit: Mapped[Decimal] = mapped_column(
+    debt_limit: Mapped[Optional[Decimal]] = mapped_column(
         DECIMAL(precision=16, scale=2), nullable=True
     )
     current_debt: Mapped[Decimal] = mapped_column(

@@ -138,6 +138,58 @@ def format_service_details(service: Service) -> str:
     )
 
 
+@service_details_router.message(ServiceStates.waiting_for_name)
+async def finish_set_custom_name(
+    message: Message, state: FSMContext, seller: Seller, repo: RequestsRepo
+):
+    """Complete the process of setting a custom name."""
+    try:
+        # Get data from state
+        data = await state.get_data()
+        service_id = UUID(data["service_id"])
+        prompt_message_id = data.get("prompt_message_id")
+
+        # Get service to verify ownership
+        service = await repo.services.get_service(service_id)
+        if not service or service.seller_id != seller.id:
+            await message.answer("❌ سرویس مورد نظر یافت نشد.")
+            await state.clear()
+            return
+
+        # Update custom name
+        await repo.services.update_service_custom_name(service_id, message.text)
+
+        # Delete the prompt message if we have its ID
+        if prompt_message_id:
+            try:
+                await message.bot.delete_message(message.chat.id, prompt_message_id)
+            except Exception as e:
+                logging.warning(f"Failed to delete prompt message: {e}")
+
+        # Delete the user's input message
+        try:
+            await message.delete()
+        except Exception as e:
+            logging.warning(f"Failed to delete user input message: {e}")
+
+        # Clear state
+        await state.clear()
+
+        # Get updated service
+        service = await repo.services.get_service(service_id)
+
+        # Send confirmation with updated service details
+        await message.answer(
+            "✅ نام دلخواه با موفقیت تنظیم شد.\n\n" + format_service_details(service),
+            reply_markup=create_service_details_keyboard(service),
+        )
+
+    except Exception as e:
+        logging.error(f"Error in finish_set_custom_name: {e}", exc_info=True)
+        await message.answer("❌ خطا در تنظیم نام دلخواه.")
+        await state.clear()
+
+
 # For viewing service details
 @service_details_router.callback_query(F.data.startswith(SERVICE_ACTION_PREFIX["VIEW"]))
 async def show_service_details(
@@ -227,58 +279,6 @@ async def start_set_custom_name(
         await callback.answer("❌ خطا در شروع فرآیند تنظیم نام.", show_alert=True)
 
 
-@service_details_router.message(ServiceStates.waiting_for_name)
-async def finish_set_custom_name(
-    message: Message, state: FSMContext, seller: Seller, repo: RequestsRepo
-):
-    """Complete the process of setting a custom name."""
-    try:
-        # Get data from state
-        data = await state.get_data()
-        service_id = UUID(data["service_id"])
-        prompt_message_id = data.get("prompt_message_id")
-
-        # Get service to verify ownership
-        service = await repo.services.get_service(service_id)
-        if not service or service.seller_id != seller.id:
-            await message.answer("❌ سرویس مورد نظر یافت نشد.")
-            await state.clear()
-            return
-
-        # Update custom name
-        await repo.services.update_service_custom_name(service_id, message.text)
-
-        # Delete the prompt message if we have its ID
-        if prompt_message_id:
-            try:
-                await message.bot.delete_message(message.chat.id, prompt_message_id)
-            except Exception as e:
-                logging.warning(f"Failed to delete prompt message: {e}")
-
-        # Delete the user's input message
-        try:
-            await message.delete()
-        except Exception as e:
-            logging.warning(f"Failed to delete user input message: {e}")
-
-        # Clear state
-        await state.clear()
-
-        # Get updated service
-        service = await repo.services.get_service(service_id)
-
-        # Send confirmation with updated service details
-        await message.answer(
-            "✅ نام دلخواه با موفقیت تنظیم شد.\n\n" + format_service_details(service),
-            reply_markup=create_service_details_keyboard(service),
-        )
-
-    except Exception as e:
-        logging.error(f"Error in finish_set_custom_name: {e}", exc_info=True)
-        await message.answer("❌ خطا در تنظیم نام دلخواه.")
-        await state.clear()
-
-
 @service_details_router.callback_query(
     F.data.startswith(SERVICE_ACTION_PREFIX["GET_CONFIG"])
 )
@@ -302,22 +302,22 @@ async def handle_get_config(
             return
 
         # Generate QR code
-        qr_code_url = await generate_qr_code(service.peer.config_file)
+        qr_code_url = await generate_qr_code(service.peer.config_file)  # type: ignore
 
         # Create config file document
         config_document = BufferedInputFile(
-            file=service.peer.config_file.encode("utf-8"),
-            filename=f"wireguard_{service.peer.public_id}.conf",
+            file=service.peer.config_file.encode("utf-8"),  # type: ignore
+            filename=f"wireguard_{service.peer.public_id}.conf",  # type: ignore
         )
 
         await callback.message.answer_document(
             document=config_document,
-            caption=f"🔰 فایل پیکربندی سرویس {service.peer.public_id}",
+            caption=f"🔰 فایل پیکربندی سرویس {service.peer.public_id}",  # type: ignore
         )
 
         await callback.message.answer_photo(
             photo=qr_code_url,
-            caption=f" 🔄 کد QR پیکربندی سرویس {service.peer.public_id}",
+            caption=f" 🔄 کد QR پیکربندی سرویس {service.peer.public_id}",  # type: ignore
         )
 
         await callback.answer()
