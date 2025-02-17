@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import html
 from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
