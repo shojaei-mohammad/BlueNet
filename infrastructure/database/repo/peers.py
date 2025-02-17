@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime, timezone
+from uuid import UUID
 
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from infrastructure.database.models import Peer
@@ -43,3 +45,41 @@ class PeerRepo(BaseRepo):
             raise Exception(
                 "An unexpected error occurred during database operations."
             ) from e
+
+    async def update_peer_keys(
+        self, peer_id: UUID, private_key: str, public_key: str, config_file: str
+    ) -> bool:
+        """
+        Update a peer's keys and config.
+
+        Args:
+            peer_id: UUID of the peer to update
+            private_key: New private key
+            public_key: New public key
+            config_file: New config file content
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            stmt = (
+                update(Peer)
+                .where(Peer.id == peer_id)
+                .values(
+                    private_key=private_key,
+                    public_key=public_key,
+                    config_file=config_file,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+                .returning(Peer.id)
+            )
+
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+
+            return result.scalar_one_or_none() is not None
+
+        except Exception as e:
+            await self.session.rollback()
+            logging.error(f"Error updating peer keys: {e}", exc_info=True)
+            raise

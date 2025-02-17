@@ -17,8 +17,6 @@ from infrastructure.database.repo.requests import RequestsRepo
 from infrastructure.services.wireguard import WireguardManager
 from tgbot.models.wireguard import WireguardConfig, PurchaseData, WireguardPeerConfig
 
-logger = logging.getLogger(__name__)
-
 
 class PurchaseService:
     def __init__(self, repo: RequestsRepo):
@@ -41,11 +39,11 @@ class PurchaseService:
                 endpoint=interface.endpoint,
             )
             self.wg_manager = WireguardManager(config)
-            logger.info(
+            logging.info(
                 f"Initialized WireguardManager for interface {interface.interface_name}"
             )
         except Exception as e:
-            logger.error(f"Failed to initialize WireguardManager: {e}", exc_info=True)
+            logging.error(f"Failed to initialize WireguardManager: {e}", exc_info=True)
             raise
 
     async def _create_wireguard_peer(
@@ -59,24 +57,26 @@ class PurchaseService:
                 purchase_id=service.id,
             )
 
-            logger.info(
+            logging.info(
                 f"Creating WireGuard peer for service {service.id} on interface {interface.interface_name}"
             )
             peer_config, config_file, qr_code = await self.wg_manager.create_peer(
                 interface_name=interface.interface_name, purchase_data=purchase_data
             )
 
-            logger.info(f"Successfully created WireGuard peer for service {service.id}")
+            logging.info(
+                f"Successfully created WireGuard peer for service {service.id}"
+            )
             return peer_config, config_file, qr_code
         except Exception as e:
-            logger.error(f"Failed to create WireGuard peer: {e}", exc_info=True)
+            logging.error(f"Failed to create WireGuard peer: {e}", exc_info=True)
             raise
 
     async def process_purchase(
         self, seller: Seller, tariff: Tariff, interface: Interface
     ) -> tuple[Service, str, BufferedInputFile, str]:
         """Process a service purchase"""
-        logger.info(
+        logging.info(
             f"Starting purchase process for seller {seller.id}, tariff {tariff.id}"
         )
 
@@ -87,7 +87,7 @@ class PurchaseService:
             # Calculate prices
             original_price = tariff.price
             seller_price = original_price * (1 - seller.discount_percent / 100)
-            logger.info(
+            logging.info(
                 f"Calculated prices: original={original_price}, seller={seller_price}"
             )
 
@@ -97,12 +97,12 @@ class PurchaseService:
                 tariff_id=tariff.id,
                 interface_id=interface.id,
                 purchase_date=datetime.now(timezone.utc),
-                status=ServiceStatus.INACTIVE,
+                status=ServiceStatus.UNUSED,
                 original_price=original_price,
                 seller_price=seller_price,
             )
             service = await self.repo.services.create_service(service_data)
-            logger.info(f"Created service record with ID {service.id}")
+            logging.info(f"Created service record with ID {service.id}")
 
             # Create WireGuard peer
             peer_config, config_file, qr_code = await self._create_wireguard_peer(
@@ -124,14 +124,14 @@ class PurchaseService:
                 peer_comment=peer_config.comment,
             )
             peer = await self.repo.peers.create_peer(peer_data)
-            logger.info(f"Created peer record for service {service.id}")
+            logging.info(f"Created peer record for service {service.id}")
 
             # Create config file with proper naming
             config_filename = f"{public_id}.conf"
             config_document = BufferedInputFile(
                 file=config_file.encode("utf-8"), filename=config_filename
             )
-            logger.info(f"Generated config file: {config_filename}")
+            logging.info(f"Generated config file: {config_filename}")
 
             # Record transaction
             transaction = Transaction(
@@ -142,7 +142,7 @@ class PurchaseService:
                 description=f"Purchase of {tariff.description}",
             )
             await self.repo.transactions.create_transaction(transaction)
-            logger.info(f"Recorded transaction for service {service.id}")
+            logging.info(f"Recorded transaction for service {service.id}")
 
             # Update seller debt
             await self.repo.sellers.update_seller_dept(
@@ -150,7 +150,7 @@ class PurchaseService:
                 seller_price=seller_price,
                 profit=original_price - seller_price,
             )
-            logger.info(f"Updated seller {seller.id} debt")
+            logging.info(f"Updated seller {seller.id} debt")
 
             # Update service with peer ID
             await self.repo.services.update_peer_id(
@@ -161,13 +161,13 @@ class PurchaseService:
             await self.repo.interfaces.increment_interface_counter(
                 interface_id=interface.id
             )
-            logger.info(f"Updated interface {interface.id} counter")
+            logging.info(f"Updated interface {interface.id} counter")
 
-            logger.info(
+            logging.info(
                 f"Successfully completed purchase process for service {service.id}"
             )
             return service, qr_code, config_document, public_id
 
         except Exception as e:
-            logger.error(f"Purchase process failed: {e}", exc_info=True)
+            logging.error(f"Purchase process failed: {e}", exc_info=True)
             raise

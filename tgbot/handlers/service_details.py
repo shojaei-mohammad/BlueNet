@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
@@ -17,6 +18,7 @@ from infrastructure.database.models import ServiceStatus, Service
 from infrastructure.database.models.sellers import Seller
 from infrastructure.database.repo.requests import RequestsRepo
 from infrastructure.services.wireguard import WireguardManager
+from tgbot.handlers.helper.purchase import show_loading_status
 from tgbot.models.wireguard import WireguardConfig
 from tgbot.services.back_button import add_return_buttons
 from tgbot.services.utils import (
@@ -88,7 +90,16 @@ def create_service_details_keyboard(service: Service) -> InlineKeyboardMarkup:
 
 def format_service_details(service: Service) -> str:
     """Format service details text."""
-    status_emoji = "🟢" if service.status == ServiceStatus.ACTIVE else "🔴"
+    # Define status emojis for different states
+    status_emojis = {
+        ServiceStatus.UNUSED: "⚪",  # White circle for unused
+        ServiceStatus.INACTIVE: "🔴",  # Red circle for inactive
+        ServiceStatus.ACTIVE: "🟢",  # Green circle for active
+        ServiceStatus.EXPIRED: "🟡",  # Yellow circle for expired
+        ServiceStatus.DELETED: "⚫",  # Black circle for deleted
+    }
+
+    status_emoji = status_emojis.get(service.status, "❓")
 
     # Format dates
     purchase_date = (
@@ -407,3 +418,95 @@ async def enable_service(callback: CallbackQuery, seller: Seller, repo: Requests
     except Exception as e:
         logging.error(f"Error in enable_service: {e}", exc_info=True)
         await callback.answer("❌ خطا در فعال‌سازی سرویس.", show_alert=True)
+
+
+@service_details_router.callback_query(
+    F.data.startswith(SERVICE_ACTION_PREFIX["RESET_KEY"])
+)
+async def handle_reset_key(callback: CallbackQuery, seller: Seller, repo: RequestsRepo):
+    """Handle service key reset action."""
+    try:
+        logging.info("Reset key handler called")
+        service_id = UUID(
+            callback.data.removeprefix(SERVICE_ACTION_PREFIX["RESET_KEY"])
+        )
+        service = await repo.services.get_service(service_id)
+
+        if not service or service.seller_id != seller.id:
+            await callback.answer("❌ سرویس مورد نظر یافت نشد!", show_alert=True)
+            return
+
+        # Answer callback immediately to prevent timeout
+        await callback.answer("⏳ در حال پردازش درخواست شما...")
+
+        async with show_loading_status(callback.message, "⏳ در حال بازنشانی کلید..."):
+            # Get WireGuard configuration
+            wg_config = WireguardConfig(
+                router_host=service.interface.router.hostname,
+                router_port=service.interface.router.api_port,
+                router_user=service.interface.router.username,
+                router_password=service.interface.router.password,
+                endpoint=service.interface.endpoint,
+                public_key=service.interface.public_key,
+                subnet=service.interface.network_subnet,
+                dns_servers=service.interface.dns_servers,
+                allowed_ips=service.interface.allowed_ips,
+            )
+
+            # Initialize WireGuard manager and reset peer
+            wg_manager = WireguardManager(wg_config)
+            result = await wg_manager.reset_peer(
+                service.interface.interface_name, service.peer.peer_comment
+            )
+
+            if result:
+                peer_config, config_file, qr_code = result
+
+                # Update peer information in database
+                await repo.peers.update_peer_keys(
+                    service.peer.id,
+                    private_key=peer_config.private_key,
+                    public_key=peer_config.public_key,
+                    config_file=config_file,
+                )
+
+                # Create config file document
+                config_document = BufferedInputFile(
+                    file=config_file.encode("utf-8"),
+                    filename=f"wireguard_{service.peer.public_id}.conf",
+                )
+
+                # Send new configuration
+                await callback.message.answer_photo(
+                    photo=qr_code, caption="🔄 کلید سرویس با موفقیت بازنشانی شد!"
+                )
+
+                await callback.message.answer_document(
+                    document=config_document,
+                    caption=f"📁 فایل کانفیگ سرویس {service.peer.public_id}",
+                )
+
+                # Get fresh service details
+                updated_service = await repo.services.get_service(service_id)
+                new_text = format_service_details(updated_service)
+                new_keyboard = create_service_details_keyboard(updated_service)
+
+                # Check if the content would actually change
+                current_text = callback.message.text
+                if current_text != new_text:
+                    try:
+                        await callback.message.edit_text(
+                            text=new_text, reply_markup=new_keyboard
+                        )
+                    except TelegramBadRequest as e:
+                        if "message is not modified" not in str(e):
+                            raise
+                        logging.debug("Message content was identical, skipping update")
+            else:
+                await callback.message.answer(
+                    "❌ خطا در بازنشانی کلید. لطفا دوباره تلاش کنید."
+                )
+
+    except Exception as e:
+        logging.error(f"Error in handle_reset_key: {e}", exc_info=True)
+        await callback.message.answer("❌ خطا در بازنشانی کلید. لطفا دوباره تلاش کنید.")

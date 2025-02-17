@@ -396,3 +396,72 @@ class WireguardManager:
         finally:
             if self._client_pool:
                 self._client_pool.disconnect()
+
+    async def reset_peer(
+        self, interface_name: str, peer_comment: str
+    ) -> Optional[Tuple[WireguardPeerConfig, str, str]]:
+        """
+        Reset a WireGuard peer's keys on the router.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer to reset
+
+        Returns:
+            Optional[Tuple[WireguardPeerConfig, str, str]]: (peer_config, config_file, qr_code) if successful, None otherwise
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return None
+
+            # Generate new WireGuard keypair
+            private_key, public_key = await self._generate_keypair()
+
+            # Create peer configuration object with existing IP but new keys
+            peer_config = WireguardPeerConfig(
+                interface_name=interface_name,
+                private_key=private_key,
+                public_key=public_key,
+                allowed_ip=peer["allowed-address"].split("/")[0],
+                comment=peer_comment,
+            )
+
+            # Update peer on router
+            peer_resource = api.get_resource("/interface/wireguard/peers")
+            await self._execute_api_command(
+                peer_resource.set,
+                **{
+                    ".id": peer["id"],
+                    "public-key": public_key,
+                },
+            )
+
+            # Generate new client configuration
+            server_config = {
+                "dns_servers": self.config.dns_servers,
+                "public_key": self.config.public_key,
+                "allowed_ips": self.config.allowed_ips,
+                "endpoint": f"{self.config.endpoint}",
+            }
+            config_file = await self._generate_client_config(server_config, peer_config)
+
+            # Generate QR code
+            qr_code = await generate_qr_code(config_file)
+
+            logging.info(f"Successfully reset peer: {peer_comment}")
+            return peer_config, config_file, qr_code
+
+        except Exception as e:
+            logging.error(f"Error resetting peer {peer_comment}: {e}")
+            return None
+        finally:
+            if self._client_pool:
+                self._client_pool.disconnect()

@@ -1,7 +1,6 @@
 # tgbot/handlers/services.py
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -18,12 +17,20 @@ services_router = Router()
 SERVICES_PER_PAGE = 5
 
 
-def is_service_online(service: Service) -> bool:
-    """Check if service is online based on last_handshake"""
-    if not service.last_handshake:
-        return False
-    # Consider service online if last handshake was within last 3 minutes
-    return datetime.now(timezone.utc) - service.last_handshake < timedelta(minutes=3)
+def get_service_status_emoji(service: Service) -> str:
+    """Get appropriate emoji for service status."""
+    if not service.status:
+        return "❓"
+
+    status_emojis = {
+        ServiceStatus.UNUSED: "⚪",  # White circle for unused
+        ServiceStatus.INACTIVE: "🔴",  # Red circle for inactive
+        ServiceStatus.ACTIVE: "🟢",  # Green circle for active
+        ServiceStatus.EXPIRED: "🟡",  # Yellow circle for expired
+        ServiceStatus.DELETED: "⚫",  # Black circle for deleted
+    }
+
+    return status_emojis.get(service.status, "❓")
 
 
 def create_services_keyboard(
@@ -33,13 +40,7 @@ def create_services_keyboard(
 
     # Add service buttons
     for service in services:
-        # Create status emoji based on service status and last handshake
-        is_online = is_service_online(service)
-        status_emoji = (
-            "🟢" if service.status == ServiceStatus.ACTIVE and is_online else "🔴"
-        )
-
-        # Format service info using public_id
+        status_emoji = get_service_status_emoji(service)
         service_info = (
             f"{status_emoji} {service.peer.public_id if service.peer else 'N/A'}"
         )
@@ -93,19 +94,24 @@ async def show_services_list(
         # Calculate total pages
         total_pages = (total_count + SERVICES_PER_PAGE - 1) // SERVICES_PER_PAGE
 
-        # Create message text
-        active_count = sum(1 for s in services if s.status == ServiceStatus.ACTIVE)
-        inactive_count = sum(1 for s in services if s.status == ServiceStatus.INACTIVE)
+        # Count services by status
+        status_counts = {status: 0 for status in ServiceStatus}
+        for service in services:
+            if service.status in status_counts:
+                status_counts[service.status] += 1
 
+        # Create message text
         text = (
             f"📋 لیست سرویس‌های شما:\n\n"
             f"🔢 تعداد کل: {convert_english_digits_to_farsi(total_count)}\n"
-            f"✅ فعال: {convert_english_digits_to_farsi(active_count)}\n"
-            f"⚠️  غیرفعال: {convert_english_digits_to_farsi(inactive_count)}\n\n"
+            f"🟢 فعال: {convert_english_digits_to_farsi(status_counts[ServiceStatus.ACTIVE])}\n"
+            f"🔴 غیرفعال: {convert_english_digits_to_farsi(status_counts[ServiceStatus.INACTIVE])}\n"
+            f"⚪ استفاده نشده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.UNUSED])}\n"
+            f"🟡 منقضی شده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.EXPIRED])}\n"
+            f"⚫ حذف شده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.DELETED])}\n\n"
             "برای مشاهده جزئیات هر سرویس روی آن کلیک کنید:"
         )
 
-        # Send or edit message with keyboard
         await callback.message.edit_text(
             text=text,
             reply_markup=create_services_keyboard(
@@ -136,12 +142,21 @@ async def handle_services_pagination(
         # Calculate total pages
         total_pages = (total_count + SERVICES_PER_PAGE - 1) // SERVICES_PER_PAGE
 
+        # Count services by status
+        status_counts = {status: 0 for status in ServiceStatus}
+        for service in services:
+            if service.status in status_counts:
+                status_counts[service.status] += 1
+
         # Update message with new page
-        active_count = sum(1 for s in services if s.status == ServiceStatus.ACTIVE)
         text = (
             f"📋 لیست سرویس‌های شما:\n\n"
-            f"🔢 تعداد کل: {total_count}\n"
-            f"✅ فعال: {active_count}\n\n"
+            f"🔢 تعداد کل: {convert_english_digits_to_farsi(total_count)}\n"
+            f"🟢 فعال: {convert_english_digits_to_farsi(status_counts[ServiceStatus.ACTIVE])}\n"
+            f"🔴 غیرفعال: {convert_english_digits_to_farsi(status_counts[ServiceStatus.INACTIVE])}\n"
+            f"⚪ استفاده نشده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.UNUSED])}\n"
+            f"🟡 منقضی شده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.EXPIRED])}\n"
+            f"⚫ حذف شده: {convert_english_digits_to_farsi(status_counts[ServiceStatus.DELETED])}\n\n"
             "برای مشاهده جزئیات هر سرویس روی آن کلیک کنید:"
         )
 
