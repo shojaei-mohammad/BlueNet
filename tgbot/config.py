@@ -41,6 +41,7 @@ class WG(BaseSettings, env_prefix="WG_"):
     """
 
     dns_servers: str
+    deletion_grace_period: int
 
 
 class DbConfig(BaseSettings, env_prefix="DB_"):

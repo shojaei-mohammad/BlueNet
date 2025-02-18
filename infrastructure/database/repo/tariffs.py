@@ -97,3 +97,63 @@ class TariffRepo(BaseRepo):
             raise Exception(
                 "An unexpected error occurred during database operations."
             ) from e
+
+    async def get_compatible_tariffs(
+        self, service_type: ServiceType, country_code: str
+    ) -> list[Tariff]:
+        """
+        Fetch tariffs that are compatible with the given service type and country code.
+
+        Args:
+            service_type (ServiceType): The type of service
+            country_code (str): The country code for the tariffs
+
+        Returns:
+            list[Tariff]: List of compatible tariffs
+
+        Raises:
+            Exception: If there's an error fetching the tariffs
+        """
+        try:
+            logging.info(
+                f"Fetching compatible tariffs for service_type: {service_type}, "
+                f"country_code: {country_code}"
+            )
+
+            stmt = (
+                select(Tariff)
+                .where(
+                    Tariff.service_type == service_type,
+                    Tariff.country_code == country_code,
+                )
+                .order_by(Tariff.price)  # Order by price ascending
+            )
+
+            result = await self.session.execute(stmt)
+            tariffs = list(result.scalars().all())
+
+            if not tariffs:
+                logging.warning(
+                    f"No compatible tariffs found for service_type: {service_type}, "
+                    f"country_code: {country_code}"
+                )
+                return []
+
+            logging.info(f"Found {len(tariffs)} compatible tariffs")
+            return tariffs
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error while fetching compatible tariffs: {e}", exc_info=True
+            )
+            raise Exception(
+                "Failed to fetch compatible tariffs due to database error"
+            ) from e
+        except Exception as e:
+            logging.error(
+                f"Unexpected error while fetching compatible tariffs: {e}",
+                exc_info=True,
+            )
+            raise Exception(
+                "An unexpected error occurred while fetching compatible tariffs"
+            ) from e

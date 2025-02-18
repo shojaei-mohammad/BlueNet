@@ -131,6 +131,7 @@ class ServiceRepo(BaseRepo):
                 select(Service)
                 .options(
                     selectinload(Service.peer),
+                    selectinload(Service.tariff),
                     selectinload(Service.interface).selectinload(Interface.router),
                 )
                 .where(Service.id == service_id)
@@ -279,3 +280,37 @@ class ServiceRepo(BaseRepo):
                 exc_info=True,
             )
             raise e
+
+    async def update_service_expiry(
+        self, service_id: UUID, expiry_date: datetime, deletion_date: datetime
+    ) -> bool:
+
+        try:
+            # Create update statement
+            stmt = (
+                update(Service)
+                .where(Service.id == service_id)
+                .values(
+                    expiry_date=expiry_date,
+                    deletion_date=deletion_date,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+                .returning(Service.id)
+            )
+
+            # Execute update
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+
+            # Check if any row was updated
+            updated = result.scalar_one_or_none() is not None
+
+            return updated
+
+        except Exception as e:
+            await self.session.rollback()
+            logging.error(
+                f"Error updating service {service_id} expiry date to {expiry_date}: {e}",
+                exc_info=True,
+            )
+            raise

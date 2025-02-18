@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class TransactionType(enum.Enum):
     PURCHASE = "purchase"
+    RENEWAL = "renewal"
     SETTLEMENT = "settlement"
 
 
