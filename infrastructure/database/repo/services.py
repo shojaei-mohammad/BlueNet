@@ -8,7 +8,7 @@ from sqlalchemy import insert, update, select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
 
-from infrastructure.database.models import Service, ServiceStatus, Interface
+from infrastructure.database.models import Service, ServiceStatus, Interface, Peer
 from infrastructure.database.repo.base import BaseRepo
 
 
@@ -311,6 +311,116 @@ class ServiceRepo(BaseRepo):
             await self.session.rollback()
             logging.error(
                 f"Error updating service {service_id} expiry date to {expiry_date}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def get_service_by_public_id(
+        self, seller_id: int, public_id: str
+    ) -> Optional[Service]:
+        """
+        Get service by exact public ID match for a specific seller.
+
+        Args:
+            seller_id: The ID of the seller
+            public_id: The public ID to search for
+
+        Returns:
+            Service object if found, None otherwise
+
+        Raises:
+            SQLAlchemyError: If there's a database error
+        """
+        try:
+            logging.debug(
+                f"Searching for service with public_id: {public_id} for seller: {seller_id}"
+            )
+
+            query = (
+                select(Service)
+                .join(Service.peer)
+                .where(Service.seller_id == seller_id, Peer.public_id == public_id)
+                .options(
+                    joinedload(Service.peer),
+                    joinedload(Service.tariff),
+                    joinedload(Service.interface),
+                )
+            )
+
+            result = await self.session.execute(query)
+            service = result.scalar_one_or_none()
+
+            if service:
+                logging.info(f"Found service with public_id: {public_id}")
+            else:
+                logging.info(f"No service found with public_id: {public_id}")
+
+            return service
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error while searching service by public_id {public_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+
+        except Exception as e:
+            logging.error(
+                f"Unexpected error while searching service by public_id {public_id}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+
+    async def get_service_by_ip(self, seller_id: int, ip: str) -> Optional[Service]:
+        """
+        Get service by exact IP match for a specific seller.
+
+        Args:
+            seller_id: The ID of the seller
+            ip: The IP address to search for
+
+        Returns:
+            Service object if found, None otherwise
+
+        Raises:
+            SQLAlchemyError: If there's a database error
+        """
+        try:
+            logging.debug(
+                f"Searching for service with IP: {ip} for seller: {seller_id}"
+            )
+
+            query = (
+                select(Service)
+                .join(Service.peer)
+                .where(Service.seller_id == seller_id, Peer.allocated_ip == ip)
+                .options(
+                    joinedload(Service.peer),
+                    joinedload(Service.tariff),
+                    joinedload(Service.interface),
+                )
+            )
+
+            result = await self.session.execute(query)
+            service = result.scalar_one_or_none()
+
+            if service:
+                logging.info(f"Found service with IP: {ip}")
+            else:
+                logging.info(f"No service found with IP: {ip}")
+
+            return service
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error while searching service by IP {ip}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+
+        except Exception as e:
+            logging.error(
+                f"Unexpected error while searching service by IP {ip}: {str(e)}",
                 exc_info=True,
             )
             raise

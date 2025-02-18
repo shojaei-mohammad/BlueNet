@@ -63,7 +63,7 @@ menu_structure = {
         "menu_type": "user",
         "options": [
             {"text": "📜 مشاهده همه کاربران", "callback_data": "services"},
-            {"text": "🔍 جستجو با نام کاربری", "callback_data": "find"},
+            {"text": "🔍 جستجو با نام کاربری", "callback_data": "find_name"},
             {"text": "🔍 جستجو با آدرس IP", "callback_data": "find_ip"},
         ],
     },
