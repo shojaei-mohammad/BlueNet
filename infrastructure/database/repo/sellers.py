@@ -2,8 +2,9 @@
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 
-from sqlalchemy import update
+from sqlalchemy import update, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -142,4 +143,22 @@ class SellerRepo(BaseRepo):
         except SQLAlchemyError as e:
             await self.session.rollback()
             logging.error(f"Failed to update seller status: {e}")
+            raise
+
+    async def get_seller_by_id(self, seller_id: int) -> Optional[Seller]:
+        """
+        Get a seller by their ID.
+
+        Args:
+            seller_id: The ID of the seller to retrieve
+
+        Returns:
+            Optional[Seller]: The seller if found, None otherwise
+        """
+        try:
+            stmt = select(Seller).where(Seller.id == seller_id)
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logging.error(f"Failed to get seller by ID: {e}")
             raise

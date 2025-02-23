@@ -74,7 +74,7 @@ menu_structure = {
         "menu_type": "user",
         "options": [
             {"text": "📑 تراکنش ها", "callback_data": "transaction_repo"},
-            {"text": "📤 درخواست تسویه حساب", "callback_data": "debit"},
+            {"text": "📤 درخواست تسویه حساب", "callback_data": "settlement"},
         ],
     },
 }

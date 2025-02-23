@@ -33,6 +33,8 @@ class TgBot(BaseSettings, env_prefix="TGBOT_"):
     admin_ids: list[int]
     use_redis: bool = False
     support_link: str
+    card_number: int
+    card_holder: str
 
 
 class WG(BaseSettings, env_prefix="WG_"):

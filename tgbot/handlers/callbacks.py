@@ -113,16 +113,6 @@ async def default_callback_query(
             await callback.message.answer(
                 "لطفاً تعداد مورد نظر را وارد کنید (حداکثر 50):"
             )
-        elif callback_data == "services":
-            pass
-        elif callback_data.startswith("find_"):
-            search_parameter = callback_data.split("_")[1]
-            if search_parameter == "name":
-                pass
-            elif search_parameter == "ip":
-                pass
-            else:
-                await callback.answer("فرمت درخوا��ت نامعتبر ا��ت.")
         else:
             logging.warning(f"Undefined callback: {callback_data}")
             await callback.answer(text="منو تعریف نشده است.")

@@ -32,6 +32,9 @@ class Transaction(Base, TableNameMixin, TimestampMixin):
     transaction_type: Mapped[str] = mapped_column(
         Enum(TransactionType, name="transaction_types"), index=True
     )
+    proof: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, server_default=None
+    )
     description: Mapped[str] = mapped_column(String(255))
 
     # Relationships

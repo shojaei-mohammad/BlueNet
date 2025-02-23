@@ -36,7 +36,7 @@ async def handle_my_profile(callback: CallbackQuery, seller):
             )
 
         kb = InlineKeyboardBuilder()
-        kb.button(text="💳 تسویه حساب", callback_data="settle_debt")
+        kb.button(text="💳 تسویه حساب", callback_data="settlement")
         markup = add_return_buttons(kb_builder=kb, back_callback="users_main_menu")
 
         await callback.message.edit_text(text=profile_text, reply_markup=markup)

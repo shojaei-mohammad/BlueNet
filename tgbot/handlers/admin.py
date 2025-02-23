@@ -1,6 +1,7 @@
 # tgbot/handlers/admin.py
 import logging
 from decimal import InvalidOperation, Decimal
+from uuid import UUID
 
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
@@ -228,6 +229,87 @@ async def default_admin_callback_query(
 
                 await callback.message.edit_text(
                     "❌ خطا در رد درخواست. لطفا مجددا تلاش کنید."
+                )
+        elif callback_data.startswith("confirm_settlement_"):
+            try:
+                transaction_id = UUID(callback_data.removeprefix("confirm_settlement_"))
+
+                # Get transaction details
+                transaction = await repo.transactions.get_transaction(transaction_id)
+                if not transaction:
+                    await callback.answer("❌ تراکنش یافت نشد.", show_alert=True)
+                    return
+
+                # Get seller details
+                seller = await repo.sellers.get_seller_by_id(transaction.seller_id)
+                if not seller:
+                    await callback.answer("❌ فروشنده یافت نشد.", show_alert=True)
+                    return
+
+                # Update seller's debt
+                await repo.sellers.update_seller_dept(
+                    seller_id=seller.id,
+                    seller_price=-transaction.amount,  # Negative amount to reduce debt
+                    profit=Decimal(0),
+                )
+
+                # Notify seller
+                await callback.bot.send_message(
+                    chat_id=seller.chat_id,
+                    text=(
+                        "✅ درخواست تسویه حساب شما تایید شد.\n\n"
+                        f"💰 مبلغ: {format_currency(transaction.amount, convert_to_farsi=True)} تومان"
+                    ),
+                )
+
+                # Update admin message
+                await callback.message.edit_text(
+                    callback.message.text + "\n\n✅ تایید شده", reply_markup=None
+                )
+
+                await callback.answer(
+                    "✅ تسویه حساب با موفقیت تایید شد.", show_alert=True
+                )
+
+            except Exception as e:
+                logging.error(f"Error in confirm_settlement: {e}")
+                await callback.answer("❌ خطا در تایید تسویه حساب.", show_alert=True)
+        elif callback_data.startswith("reject_settlement_"):
+            try:
+                transaction_id = UUID(callback_data.removeprefix("reject_settlement_"))
+
+                # Get transaction details
+                transaction = await repo.transactions.get_transaction(transaction_id)
+                if not transaction:
+                    await callback.answer("❌ تراکنش یافت نشد.", show_alert=True)
+                    return
+
+                # Get seller details
+                seller = await repo.sellers.get_seller_by_id(transaction.seller_id)
+                if not seller:
+                    await callback.answer("❌ فروشنده یافت نشد.", show_alert=True)
+                    return
+
+                # Delete the transaction
+                await repo.transactions.delete_transaction(transaction_id)
+
+                # Notify seller
+                await callback.bot.send_message(
+                    chat_id=seller.chat_id,
+                    text="❌ درخواست تسویه حساب شما رد شد. لطفا مجددا تلاش کنید.",
+                )
+
+                # Update admin message
+                await callback.message.edit_text(
+                    callback.message.text + "\n\n❌ رد شده", reply_markup=None
+                )
+
+                await callback.answer("❌ درخواست تسویه حساب رد شد.", show_alert=True)
+
+            except Exception as e:
+                logging.error(f"Error in reject_settlement: {e}")
+                await callback.answer(
+                    "❌ خطا در رد درخواست تسویه حساب.", show_alert=True
                 )
         else:
             logging.info(f"undefined callback: {callback_data}")
