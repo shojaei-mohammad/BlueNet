@@ -324,10 +324,10 @@ async def handle_bulk_purchase(
             for i, (qr_code, config_document) in enumerate(configs, 1):
                 await callback.message.answer(f"🔹 ارسال کانفیگ {i} از {quantity}:")
                 await callback.message.answer_photo(
-                    photo=qr_code, caption=f"کد QR کانفیگ {i}"
+                    photo=qr_code, caption=f"کد QR کانفیگ {i}: {public_id}"
                 )
                 await callback.message.answer_document(
-                    document=config_document, caption=f"فایل کانفیگ {i}"
+                    document=config_document, caption=f"فایل کانفیگ {i}: {public_id}"
                 )
                 if i % 5 == 0:  # Add delay every 5 configs
                     await asyncio.sleep(1)
