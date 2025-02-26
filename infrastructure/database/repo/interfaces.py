@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select, func, Float, update
 from sqlalchemy.orm import selectinload
 
-from infrastructure.database.models import Interface, ServiceType
+from infrastructure.database.models import Interface, ServiceType, Router
 from infrastructure.database.repo.base import BaseRepo
 
 
@@ -75,10 +75,17 @@ class InterfaceRepo(BaseRepo):
 
     async def increment_interface_counter(self, interface_id: UUID):
         """
-        Increment the counter of the specified interface.
+        Increment the counter of the specified interface and its router.
         """
         try:
-            stmt = (
+            # First, get the router_id for this interface
+            result = await self.session.execute(
+                select(Interface.router_id).where(Interface.id == interface_id)
+            )
+            router_id = result.scalar_one()
+
+            # Update interface counter
+            interface_stmt = (
                 update(Interface)
                 .where(Interface.id == interface_id)
                 .values(
@@ -86,9 +93,64 @@ class InterfaceRepo(BaseRepo):
                     updated_at=datetime.now(timezone.utc).replace(microsecond=0),
                 )
             )
-            await self.session.execute(stmt)
+            await self.session.execute(interface_stmt)
+
+            # Update router counter
+            router_stmt = (
+                update(Router)
+                .where(Router.id == router_id)
+                .values(
+                    current_peers=Router.current_peers + 1,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+            )
+            await self.session.execute(router_stmt)
+
+            # Commit both updates
             await self.session.commit()
 
         except Exception as e:
-            logging.error(f"Error incrementing interface counter: {e}")
+            await self.session.rollback()
+            logging.error(f"Error incrementing interface and router counters: {e}")
+            raise
+
+    async def decrement_interface_counter(self, interface_id: UUID):
+        """
+        Decrement the counter of the specified interface and its router.
+        """
+        try:
+            # First, get the router_id for this interface
+            result = await self.session.execute(
+                select(Interface.router_id).where(Interface.id == interface_id)
+            )
+            router_id = result.scalar_one()
+
+            # Update interface counter, ensuring it doesn't go below 0
+            interface_stmt = (
+                update(Interface)
+                .where(Interface.id == interface_id, Interface.current_peers > 0)
+                .values(
+                    current_peers=Interface.current_peers - 1,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+            )
+            await self.session.execute(interface_stmt)
+
+            # Update router counter, ensuring it doesn't go below 0
+            router_stmt = (
+                update(Router)
+                .where(Router.id == router_id, Router.current_peers > 0)
+                .values(
+                    current_peers=Router.current_peers - 1,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
+            )
+            await self.session.execute(router_stmt)
+
+            # Commit both updates
+            await self.session.commit()
+
+        except Exception as e:
+            await self.session.rollback()
+            logging.error(f"Error decrementing interface and router counters: {e}")
             raise
