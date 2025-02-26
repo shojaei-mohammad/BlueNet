@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infrastructure.database.repo.countries import CountryRepo
 from infrastructure.database.repo.interfaces import InterfaceRepo
 from infrastructure.database.repo.peers import PeerRepo
+from infrastructure.database.repo.routers import RouterRepo
 from infrastructure.database.repo.sellers import SellerRepo
 from infrastructure.database.repo.services import ServiceRepo
 from infrastructure.database.repo.tariffs import TariffRepo
@@ -52,3 +53,7 @@ class RequestsRepo:
     @property
     def transactions(self) -> TransactionRepo:
         return TransactionRepo(self.session)
+
+    @property
+    def routers(self) -> RouterRepo:
+        return RouterRepo(self.session)

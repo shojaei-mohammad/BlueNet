@@ -465,3 +465,34 @@ class WireguardManager:
         finally:
             if self._client_pool:
                 self._client_pool.disconnect()
+
+    # Add to infrastructure/services/wireguard.py in the WireguardManager class
+
+    async def test_connection(self) -> bool:
+        """
+        Test if connection to router API is working.
+
+        Returns:
+            bool: True if connection is successful, False otherwise
+        """
+        try:
+            # Use the existing _ensure_connected method to establish connection
+            await self._ensure_connected()
+
+            # If we get here without exception, try to execute a simple command
+            api = self._client_pool.get_api()
+            system_resource = api.get_resource("/system/resource")
+            system_resource.get()
+
+            return True
+        except (RouterOsApiConnectionError, RouterOsApiCommunicationError) as e:
+            logging.debug(f"Router connection test failed: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error in router connection test: {e}")
+            return False
+        finally:
+            # Disconnect after test
+            if self._client_pool:
+                self._client_pool.disconnect()
+                self._client_pool = None

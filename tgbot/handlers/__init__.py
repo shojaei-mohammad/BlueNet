@@ -4,6 +4,7 @@ from .admin import admin_router
 from .callbacks import callback_router
 from .echo import echo_router
 from .purchase_states import purchase_router
+from .router_status import router_status_router
 from .service_details import service_details_router
 from .service_search import search_router
 from .services import services_router
@@ -18,6 +19,7 @@ routers_list = [
     services_router,
     service_details_router,
     settlement_router,
+    router_status_router,
     callback_router,
     echo_router,  # echo_router must be last
 ]
