@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
@@ -9,7 +10,7 @@ from infrastructure.database.models import Seller, Transaction, TransactionType
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.config import Config
 from tgbot.services.back_button import add_return_buttons
-from tgbot.services.utils import format_currency
+from tgbot.services.utils import format_currency, convert_to_shamsi
 from tgbot.states.settlement import SettlementState
 
 settlement_router = Router()
@@ -43,8 +44,11 @@ async def start_settlement(
         kb = InlineKeyboardBuilder()
         markup = add_return_buttons(kb, "finance")
 
-        await callback.message.edit_text(text=message_text, reply_markup=markup)
+        prompt_message = await callback.message.edit_text(
+            text=message_text, reply_markup=markup
+        )
         await state.set_state(SettlementState.WAITING_FOR_RECEIPT)
+        await state.update_data(message_id=prompt_message.message_id)
         await callback.answer()
 
     except Exception as e:
@@ -64,6 +68,8 @@ async def handle_settlement_receipt(
 ):
     """Handle receipt submission from seller."""
     try:
+        data = await state.get_data()
+        message_id = data["message_id"]
         # Check for cancel command
         if message.text == "/cancel":
             kb = InlineKeyboardBuilder()
@@ -83,7 +89,7 @@ async def handle_settlement_receipt(
         else:
             await message.answer("❌ لطفا رسید را به صورت عکس یا متن ارسال کنید.")
             return
-
+        await message.delete()
         # Create settlement transaction with proof
         transaction = Transaction(
             seller_id=seller.id,
@@ -95,12 +101,17 @@ async def handle_settlement_receipt(
         transaction = await repo.transactions.create_transaction(transaction)
 
         # Notify admins
+        # Get current date and convert to Shamsi format
+        current_date = datetime.now()
+        shamsi_date = convert_to_shamsi(current_date)
+
         admin_message = (
             "🔄 درخواست تسویه حساب جدید\n\n"
             f"👤 فروشنده: {seller.full_name}\n"
             f"💰 مبلغ: {format_currency(seller.current_debt, convert_to_farsi=True)} تومان\n"
             f"🔖 شناسه تراکنش: {transaction.id}\n"
-            f"📝 نوع رسید: {'تصویر' if receipt_type == 'photo' else 'متنی'}"
+            f"📝 نوع رسید: {'تصویر' if receipt_type == 'photo' else 'متنی'}\n"
+            f"📅 تاریخ: {shamsi_date}"
         )
 
         # Create confirmation keyboard for admins
@@ -130,10 +141,12 @@ async def handle_settlement_receipt(
 
         # Notify seller
         kb = InlineKeyboardBuilder()
-        markup = add_return_buttons(kb, "finance")
-        await message.answer(
+        markup = add_return_buttons(kb, "finance", include_main_menu=True)
+        await message.bot.edit_message_text(
             "✅ درخواست تسویه حساب شما ثبت شد و در انتظار تایید مدیر است.\n"
             "پس از بررسی به شما اطلاع داده خواهد شد.",
+            chat_id=seller.chat_id,
+            message_id=message_id,
             reply_markup=markup,
         )
         await state.clear()

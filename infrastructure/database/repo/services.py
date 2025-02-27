@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Tuple, List, Optional
 from uuid import UUID
 
-from sqlalchemy import insert, update, select, func
+from sqlalchemy import insert, update, select, func, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -165,7 +165,10 @@ class ServiceRepo(BaseRepo):
             stmt = (
                 update(Service)
                 .where(Service.id == service_id)
-                .values(status=new_status)
+                .values(
+                    status=new_status,
+                    updated_at=datetime.now(timezone.utc).replace(microsecond=0),
+                )
                 .returning(Service.id)
             )
 
@@ -422,5 +425,177 @@ class ServiceRepo(BaseRepo):
             logging.error(
                 f"Unexpected error while searching service by IP {ip}: {str(e)}",
                 exc_info=True,
+            )
+            raise
+
+    async def get_inactive_services_with_peers(self) -> List[Service]:
+        """
+        Get inactive services with their associated peers.
+        These are services that have been purchased but not yet activated by the user.
+        """
+        try:
+            query = (
+                select(Service)
+                .where(
+                    Service.status == ServiceStatus.UNUSED, Service.peer_id.is_not(None)
+                )
+                .options(
+                    selectinload(Service.peer),
+                    selectinload(Service.interface),
+                    selectinload(Service.tariff),
+                    selectinload(Service.seller),
+                )
+            )
+
+            result = await self.session.execute(query)
+            return list(result.scalars().all())
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error in get_inactive_services_with_peers: {str(e)}"
+            )
+            raise
+
+    async def get_active_services_with_peers(self) -> List[Service]:
+        """
+        Get active services with their associated peers.
+        These are services that are currently active and need usage tracking.
+        """
+        try:
+            query = (
+                select(Service)
+                .where(
+                    Service.status == ServiceStatus.ACTIVE, Service.peer_id.is_not(None)
+                )
+                .options(
+                    selectinload(Service.peer),
+                    selectinload(Service.interface),
+                    selectinload(Service.tariff),
+                    selectinload(Service.seller),
+                )
+            )
+
+            result = await self.session.execute(query)
+            return list(result.scalars().all())
+
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_active_services_with_peers: {str(e)}")
+            raise
+
+    async def get_expired_services(self) -> List[Service]:
+        """
+        Get services that have expired but are still active.
+        """
+        try:
+            now = datetime.now()
+
+            query = (
+                select(Service)
+                .where(
+                    Service.status == ServiceStatus.ACTIVE,
+                    Service.expiry_date <= now,
+                    Service.peer_id.is_not(None),
+                )
+                .options(
+                    selectinload(Service.peer),
+                    selectinload(Service.interface),
+                    selectinload(Service.tariff),
+                    selectinload(Service.seller),
+                )
+            )
+
+            result = await self.session.execute(query)
+            return list(result.scalars().all())
+
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_expired_services: {str(e)}")
+            raise
+
+    async def update_service(self, service_id: UUID, **kwargs) -> bool:
+        """
+        Update service with the provided fields.
+        """
+        try:
+            stmt = update(Service).where(Service.id == service_id).values(**kwargs)
+
+            await self.session.execute(stmt)
+            await self.session.commit()
+            return True
+
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logging.error(f"Database error in update_service: {str(e)}")
+            raise
+
+    async def update_service_usage(
+        self,
+        service_id: UUID,
+        last_handshake: Optional[datetime] = None,
+        download_bytes: Optional[int] = None,
+        upload_bytes: Optional[int] = None,
+        total_bytes: Optional[int] = None,
+    ) -> bool:
+        """
+        Update service usage metrics.
+        """
+        try:
+            update_values = {}
+
+            if last_handshake is not None:
+                update_values["last_handshake"] = last_handshake
+
+            if download_bytes is not None:
+                update_values["download_bytes"] = download_bytes
+
+            if upload_bytes is not None:
+                update_values["upload_bytes"] = upload_bytes
+
+            if total_bytes is not None:
+                update_values["total_bytes"] = total_bytes
+
+            if not update_values:
+                return False
+
+            stmt = (
+                update(Service).where(Service.id == service_id).values(**update_values)
+            )
+
+            await self.session.execute(stmt)
+            await self.session.commit()
+            return True
+
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logging.error(f"Database error in update_service_usage: {str(e)}")
+            raise
+
+    async def get_services_past_deletion_date(self) -> list[Service]:
+        """
+        Get services that have passed their deletion date and are in EXPIRED status.
+        """
+        try:
+            stmt = (
+                select(Service)
+                .options(
+                    selectinload(Service.seller),
+                    selectinload(Service.tariff),
+                    selectinload(Service.interface).selectinload(Interface.router),
+                    selectinload(Service.peer),
+                )
+                .where(
+                    and_(
+                        Service.status == ServiceStatus.EXPIRED,
+                        Service.deletion_date < datetime.now(),
+                    )
+                )
+            )
+
+            result = await self.session.execute(stmt)
+            services = result.scalars().all()
+            return list(services)
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error in get_services_past_deletion_date: {str(e)}"
             )
             raise

@@ -27,7 +27,7 @@ async def show_quantity_selection(
         tariff_id = callback.data.split("_")[2]
         markup = get_bulk_purchase_keyboard(tariff_id)
         await callback.message.edit_text(
-            "👥 لطفاً تعداد کاربر مورد نظر را انتخاب کنید:", reply_markup=markup
+            "👥 لطفاً تعداد خرید خودتان را انتخاب کنید:", reply_markup=markup
         )
     except Exception as e:
         logging.error(f"Error in show_quantity_selection: {e}")

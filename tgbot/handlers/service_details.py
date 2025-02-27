@@ -141,9 +141,7 @@ def format_service_details(service: Service) -> str:
     deletion_date = (
         convert_to_shamsi(service.deletion_date) if service.deletion_date else "-"
     )
-    last_handshake = (
-        convert_to_shamsi(service.last_handshake) if service.last_handshake else "-"
-    )
+    last_handshake = service.last_handshake if service.last_handshake else "-"
 
     # Format traffic data (assuming bytes, convert to MB)
     total_traffic = (
@@ -174,7 +172,7 @@ def format_service_details(service: Service) -> str:
         f"{html.bold('📥 حجم کل داده مصرفی:')} {convert_english_digits_to_farsi(total_traffic)}\n"
         f"{html.bold('📲 داده دریافتی:')} {convert_english_digits_to_farsi(download_traffic)}\n"
         f"{html.bold('📤 داده ارسالی:')} {convert_english_digits_to_farsi(upload_traffic)}\n"
-        f"{html.bold('🤝 هند شیک:')} {convert_english_digits_to_farsi(last_handshake)}\n"
+        f"{html.bold('🤝 هند شیک:')} {last_handshake}\n"
         f"{html.bold('🚦 وضعیت سرویس:')} {status_emoji}\n"
         f"{html.bold('💰 قیمت:')} {format_currency(service.seller_price, convert_to_farsi=True)} تومان\n"
     )

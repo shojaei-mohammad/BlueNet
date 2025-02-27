@@ -7,8 +7,10 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from infrastructure.database.setup import create_engine, create_session_pool
+from infrastructure.scheduler.scheduler_service import SchedulerService
 from tgbot.config import load_config, Config
 from tgbot.handlers import routers_list
 from tgbot.middlewares.config import ConfigMiddleware
@@ -87,6 +89,16 @@ def get_storage(config):
         return MemoryStorage()
 
 
+def setup_scheduler(
+    session_pool: async_sessionmaker,
+    bot: Bot,
+    config: Config,
+) -> SchedulerService:
+    scheduler_service = SchedulerService(session_pool, bot, config)
+    scheduler_service.start()
+    return scheduler_service
+
+
 async def main():
     setup_logging()
 
@@ -105,7 +117,13 @@ async def main():
     register_global_middlewares(dp, config, session_pool)
 
     await on_startup(bot, config.tg_bot.admin_ids)
-    await dp.start_polling(bot)
+    # Set up and start the scheduler
+    scheduler_service = setup_scheduler(session_pool, bot, config)
+    try:
+
+        await dp.start_polling(bot)
+    finally:
+        await scheduler_service.shutdown()
 
 
 if __name__ == "__main__":

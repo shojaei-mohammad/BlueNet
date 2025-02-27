@@ -218,7 +218,7 @@ class WireguardManager:
             peer_resource = api.get_resource("/interface/wireguard/peers")
 
             # Delete the peer
-            await self._execute_api_command(api, peer_resource.remove, id=peer_id)
+            await self._execute_api_command(peer_resource.remove, id=peer_id)
 
             logging.info(
                 f"Successfully deleted peer {peer_id} on interface {interface_name}"
@@ -466,8 +466,6 @@ class WireguardManager:
             if self._client_pool:
                 self._client_pool.disconnect()
 
-    # Add to infrastructure/services/wireguard.py in the WireguardManager class
-
     async def test_connection(self) -> bool:
         """
         Test if connection to router API is working.
@@ -493,6 +491,176 @@ class WireguardManager:
             return False
         finally:
             # Disconnect after test
+            if self._client_pool:
+                self._client_pool.disconnect()
+                self._client_pool = None
+
+    async def get_peer_handshake_status(
+        self, interface_name: str, peer_comment: str
+    ) -> tuple[bool, str]:
+        """
+        Check if a peer has an active handshake.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer
+
+        Returns:
+            Tuple of (is_active: bool, raw_handshake_value: str)
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return False, ""
+
+            # Get the raw handshake value
+            handshake_time = peer.get("last-handshake", "")
+
+            # Check if handshake indicates activity
+            is_active = False
+            if handshake_time:
+                # If it's a numeric timestamp, check if it's greater than 0
+                if handshake_time.isdigit():
+                    is_active = int(handshake_time) > 0
+                # If it's a time string like "1m4s", it indicates an active handshake
+                elif (
+                    "m" in handshake_time
+                    or "s" in handshake_time
+                    or "h" in handshake_time
+                ):
+                    is_active = True
+                # Any other non-empty value suggests activity
+                elif handshake_time != "0" and handshake_time.lower() != "never":
+                    is_active = True
+
+            return is_active, handshake_time
+
+        except Exception as e:
+            logging.error(f"Error checking peer handshake: {str(e)}")
+            return False, ""
+        finally:
+            if self._client_pool:
+                self._client_pool.disconnect()
+                self._client_pool = None
+
+    async def get_peer_usage_data(self, interface_name: str, peer_comment: str) -> dict:
+        """
+        Get usage data for a peer.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer
+
+        Returns:
+            Dict with usage data including:
+            - last_handshake: datetime or None
+            - download_bytes: int
+            - upload_bytes: int
+            - total_bytes: int
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return {}
+
+            # Extract usage data
+            result = {}
+
+            # Handle handshake timestamp
+            if "last-handshake" in peer and peer["last-handshake"] not in [
+                "0",
+                "never",
+                "",
+            ]:
+                result["last_handshake"] = peer["last-handshake"]
+
+            else:
+                result["last_handshake"] = None
+
+            # Handle data transfer - make sure to handle potential non-numeric values
+            try:
+                if "rx" in peer:
+                    # Remove any non-numeric characters (like 'KiB', 'MiB', etc.)
+                    rx_value = "".join(c for c in peer["rx"] if c.isdigit())
+                    result["download_bytes"] = int(rx_value) if rx_value else 0
+                else:
+                    result["download_bytes"] = 0
+
+                if "tx" in peer:
+                    # Remove any non-numeric characters
+                    tx_value = "".join(c for c in peer["tx"] if c.isdigit())
+                    result["upload_bytes"] = int(tx_value) if tx_value else 0
+                else:
+                    result["upload_bytes"] = 0
+            except Exception as e:
+                logging.warning(f"Error parsing traffic data: {e}")
+                result["download_bytes"] = 0
+                result["upload_bytes"] = 0
+
+            # Calculate total
+            result["total_bytes"] = result["download_bytes"] + result["upload_bytes"]
+
+            return result
+
+        except Exception as e:
+            logging.error(f"Error getting peer usage data: {str(e)}")
+            return {}
+        finally:
+            if self._client_pool:
+                self._client_pool.disconnect()
+                self._client_pool = None
+
+    async def delete_peer(self, interface_name: str, peer_comment: str) -> bool:
+        """
+        Delete a WireGuard peer from the router.
+
+        Args:
+            interface_name: Name of the WireGuard interface
+            peer_comment: Comment/identifier of the peer to delete
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Ensure connection to router
+            await self._ensure_connected()
+            api = self._client_pool.get_api()
+
+            # Find the peer by comment
+            peer = await self._find_peer_by_comment(api, interface_name, peer_comment)
+
+            if not peer:
+                logging.error(f"Peer not found: {peer_comment}")
+                return False
+
+            # Delete the peer
+            success = await self._delete_peer(api, interface_name, peer["id"])
+
+            if success:
+                logging.info(f"Successfully deleted peer: {peer_comment}")
+                return True
+            else:
+                logging.error(f"Failed to delete peer: {peer_comment}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error deleting peer {peer_comment}: {str(e)}")
+            return False
+        finally:
             if self._client_pool:
                 self._client_pool.disconnect()
                 self._client_pool = None

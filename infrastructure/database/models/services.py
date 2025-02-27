@@ -63,9 +63,7 @@ class Service(Base, TableNameMixin, TimestampMixin):
     upload_bytes: Mapped[Optional[int]] = mapped_column(
         server_default="0", nullable=True
     )
-    last_handshake: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
+    last_handshake: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     custom_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Relationships
     seller: Mapped["Seller"] = relationship("Seller", back_populates="services")

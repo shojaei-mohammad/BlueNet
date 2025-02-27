@@ -12,8 +12,6 @@ async def handle_my_profile(callback: CallbackQuery, seller):
     """Handle the 'my_profile' callback."""
     try:
         full_name = seller.full_name
-        total_services = convert_english_digits_to_farsi(seller.total_services)
-        active_services = convert_english_digits_to_farsi(seller.active_services)
         total_profit = format_currency(seller.total_profit, True)
         discount_percent = convert_english_digits_to_farsi(seller.discount_percent)
         current_debt = format_currency(seller.current_debt, True)
@@ -21,10 +19,6 @@ async def handle_my_profile(callback: CallbackQuery, seller):
 
         profile_text = html.bold("👤 پروفایل من\n\n")
         profile_text += f"📌 {html.bold('نام کامل:')} {full_name}\n\n"
-        profile_text += (
-            f"📊 {html.bold('تعداد خدمات فروخته شده:')} {total_services}\n\n"
-        )
-        profile_text += f"📈 {html.bold('خدمات فعال:')} {active_services}\n\n"
         profile_text += f"💳 {html.bold('مجموع سود:')} {total_profit} تومان\n\n"
         profile_text += f"🎯 {html.bold('درصد تخفیف:')} {discount_percent}%\n\n"
         profile_text += f"📉 {html.bold('بدهی فعلی:')} {current_debt} تومان\n\n"

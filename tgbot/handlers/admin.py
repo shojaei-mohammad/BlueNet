@@ -14,6 +14,7 @@ from infrastructure.database.models.sellers import UserRole, Seller, SellerStatu
 from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.admin import AdminFilter
 from tgbot.keyboards.menu import create_markup, menu_structure
+from tgbot.services.back_button import add_return_buttons
 from tgbot.services.utils import format_currency
 from tgbot.states.admin import SellerRegistration
 
@@ -253,6 +254,9 @@ async def default_admin_callback_query(
                     profit=Decimal(0),
                 )
 
+                kb = InlineKeyboardBuilder()
+                markup = add_return_buttons(kb, "users_main_menu")
+
                 # Notify seller
                 await callback.bot.send_message(
                     chat_id=seller.chat_id,
@@ -260,6 +264,7 @@ async def default_admin_callback_query(
                         "✅ درخواست تسویه حساب شما تایید شد.\n\n"
                         f"💰 مبلغ: {format_currency(transaction.amount, convert_to_farsi=True)} تومان"
                     ),
+                    reply_markup=markup,
                 )
 
                 # Update admin message
