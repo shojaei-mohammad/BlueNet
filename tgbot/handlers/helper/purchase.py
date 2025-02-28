@@ -32,14 +32,16 @@ async def notify_admins(
     try:
         admin_message = (
             f"🔔 سرویس جدید خریداری شد\n\n"
-            f"{html.bold('فروشنده:')} {seller.username} (کد: {seller.id})\n"
-            f"{html.bold('شناسه سرویس:')} {html.code(service.id)}\n"
-            f"{html.bold('شناسه کانفیگ:')} {public_id}\n"
-            f"{html.bold('تعرفه:')} {service.tariff.description}\n"
-            f"{html.bold('قیمت فروشنده:')} {format_currency(service.seller_price, convert_to_farsi=True)} تومان \n"
-            f"{html.bold('قیمت اصلی:')} {format_currency(service.original_price, convert_to_farsi=True)} تومان \n"
-            f"{html.bold('تاریخ:')} {convert_to_shamsi(service.created_at)}\n"
-            f"{html.bold('وضعیت:')} {service.status.value}"
+            f"👤 {html.bold('فروشنده:')} {seller.username} (کد: {seller.id})\n"
+            f"💸 {html.bold('بدهی:')} {seller.current_debt}\n"
+            f"📊 {html.bold('درصد تخفیف:')} {seller.discount_percent}%\n"
+            f"🏷 {html.bold('شناسه سرویس:')} {html.code(service.id)}\n"
+            f"🔧 {html.bold('شناسه کانفیگ:')} {public_id}\n"
+            f"💰 {html.bold('تعرفه:')} {service.tariff.description}\n"
+            f"💵 {html.bold('قیمت فروشنده:')} {format_currency(service.seller_price, convert_to_farsi=True)} تومان \n"
+            f"💲 {html.bold('قیمت اصلی:')} {format_currency(service.original_price, convert_to_farsi=True)} تومان \n"
+            f"📅 {html.bold('تاریخ:')} {convert_to_shamsi(service.created_at)}\n"
+            f"🚦 {html.bold('وضعیت:')} {service.status.value}"
         )
 
         logging.info(

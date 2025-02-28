@@ -687,7 +687,9 @@ async def handle_renewal_confirmation(
         # Notify admins
         admin_notification = (
             f"🔄 تمدید سرویس\n\n"
-            f"👤 فروشنده: {seller.full_name}\n"
+            f"👤 فروشنده: {seller.username}\n"
+            f"💸 بدهی: {seller.current_debt}\n"
+            f"📈 درصد تخفیف: {seller.discount_percent}\n"
             f"📱 شناسه سرویس: {service.id}\n"
             f"🔖 شناسه عمومی: {service.peer.public_id}\n"
             f"📋 تعرفه: {tariff.description}\n"
