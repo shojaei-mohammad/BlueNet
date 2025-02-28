@@ -1,9 +1,10 @@
 # infrastructure/database/repo/transactions.py
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import insert, select, delete
+from sqlalchemy import insert, select, delete, and_, desc
 from sqlalchemy.exc import SQLAlchemyError
 
 from infrastructure.database.models import Transaction
@@ -73,4 +74,60 @@ class TransactionRepo(BaseRepo):
         except SQLAlchemyError as e:
             await self.session.rollback()
             logging.error(f"Failed to delete transaction: {e}")
+            raise
+
+    async def get_seller_transactions_paginated(
+        self, seller_id: int, days: int = 30, page: int = 1, page_size: int = 5
+    ) -> tuple[list[Transaction], int]:
+        """
+        Get paginated transactions for a seller within the specified number of days.
+
+        Args:
+            seller_id: ID of the seller
+            days: Number of days to look back (default: 30)
+            page: Page number (1-indexed)
+            page_size: Number of items per page
+
+        Returns:
+            Tuple of (list of transactions, total count)
+        """
+        try:
+            # Calculate the date threshold
+            date_threshold = datetime.now() - timedelta(days=days)
+
+            # Count total matching transactions
+            count_stmt = select(Transaction).where(
+                and_(
+                    Transaction.seller_id == seller_id,
+                    Transaction.created_at >= date_threshold,
+                )
+            )
+            count_result = await self.session.execute(count_stmt)
+            total_count = len(count_result.scalars().all())
+
+            # Get paginated results
+            offset = (page - 1) * page_size
+
+            stmt = (
+                select(Transaction)
+                .where(
+                    and_(
+                        Transaction.seller_id == seller_id,
+                        Transaction.created_at >= date_threshold,
+                    )
+                )
+                .order_by(desc(Transaction.created_at))
+                .offset(offset)
+                .limit(page_size)
+            )
+
+            result = await self.session.execute(stmt)
+            transactions = result.scalars().all()
+
+            return list(transactions), total_count
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error in get_seller_transactions_paginated: {str(e)}"
+            )
             raise

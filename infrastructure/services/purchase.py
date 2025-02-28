@@ -139,7 +139,7 @@ class PurchaseService:
                 service_id=service.id,
                 amount=seller_price,
                 transaction_type=TransactionType.PURCHASE,
-                description=f"Purchase of {tariff.description}",
+                description=f"خرید سرویس {tariff.description}",
             )
             await self.repo.transactions.create_transaction(transaction)
             logging.info(f"Recorded transaction for service {service.id}")

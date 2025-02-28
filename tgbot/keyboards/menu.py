@@ -73,7 +73,7 @@ menu_structure = {
         "back": "users_main_menu",
         "menu_type": "user",
         "options": [
-            {"text": "📑 تراکنش ها", "callback_data": "transaction_repo"},
+            {"text": "📑 تراکنش ها", "callback_data": "transactions"},
             {"text": "📤 درخواست تسویه حساب", "callback_data": "settlement"},
         ],
     },

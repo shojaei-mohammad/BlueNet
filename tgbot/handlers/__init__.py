@@ -9,6 +9,7 @@ from .service_details import service_details_router
 from .service_search import search_router
 from .services import services_router
 from .settlement import settlement_router
+from .transactions import transaction_history_router
 from .user import user_router
 
 routers_list = [
@@ -20,6 +21,7 @@ routers_list = [
     service_details_router,
     settlement_router,
     router_status_router,
+    transaction_history_router,
     callback_router,
     echo_router,  # echo_router must be last
 ]
