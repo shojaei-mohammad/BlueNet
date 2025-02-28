@@ -162,3 +162,12 @@ class SellerRepo(BaseRepo):
         except SQLAlchemyError as e:
             logging.error(f"Failed to get seller by ID: {e}")
             raise
+
+    async def get_all_chat_ids(self):
+        try:
+            stmt = select(Seller.chat_id)
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logging.error(f"Failed to get users chat id: {e}")
+            raise

@@ -13,7 +13,6 @@ menu_structure = {
         "options": [
             {"text": "📨 ارسال پیام به فروشندگان", "callback_data": "send_message"},
             {"text": "🤝 مدیریت عاملان فروش", "callback_data": "manage_resellers"},
-            {"text": "👀 مشاهده منو عاملان", "callback_data": "users_main_menu"},
         ],
     },
     "users_main_menu": {

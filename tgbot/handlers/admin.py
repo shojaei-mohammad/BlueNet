@@ -7,7 +7,12 @@ from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from infrastructure.database.models.sellers import UserRole, Seller, SellerStatus
@@ -15,8 +20,8 @@ from infrastructure.database.repo.requests import RequestsRepo
 from tgbot.filters.admin import AdminFilter
 from tgbot.keyboards.menu import create_markup, menu_structure
 from tgbot.services.back_button import add_return_buttons
-from tgbot.services.utils import format_currency
-from tgbot.states.admin import SellerRegistration
+from tgbot.services.utils import format_currency, broadcast_messages
+from tgbot.states.admin import SellerRegistration, InputCustomMessage
 
 admin_router = Router()
 admin_router.message.filter(AdminFilter())
@@ -175,6 +180,62 @@ async def handle_registration_cancellation(callback: CallbackQuery, state: FSMCo
     await state.clear()
 
 
+@admin_router.message(InputCustomMessage.wait_for_message)
+async def broadcast_handler(message: Message, state: FSMContext):
+    try:
+        input_text = message.text
+        await message.delete()
+
+        confirm_text = (
+            "درصورت تایید با فشردن دکمه ارسال پیام شما ارسال خواهد شد.\n"
+            "در صورت نیاز به ویرایش فقط کافیست متن ویرایش شده رو دوباره ارسال کنید."
+        )
+        confirm_text += "➖" * 17
+        confirm_text += "\n\n" + input_text
+
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📨 ارسال", callback_data="SendMessage:confirm"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ لغو", callback_data="SendMessage:reject"
+                    )
+                ],
+            ]
+        )
+
+        # Get existing menu message IDs
+        data = await state.get_data()
+        message_ids = data.get("menu_message_ids", [])
+
+        # Delete previous menu messages
+        for msg_id in message_ids:
+            try:
+                await message.bot.delete_message(
+                    chat_id=message.chat.id, message_id=msg_id
+                )
+            except Exception as e:
+                logging.error(f"Failed to delete menu message {msg_id}: {e}")
+
+        # Send new menu message
+        sent_message = await message.answer(text=confirm_text, reply_markup=markup)
+
+        # Update menu message IDs in state
+        message_ids = [sent_message.message_id]
+        await state.update_data(menu_message_ids=message_ids, admin_msg=input_text)
+
+        logging.info(f"Admin {message.from_user.id} prepared broadcast message")
+    except Exception as e:
+        logging.error(f"Error in broadcast_handler: {e}")
+        await message.answer(
+            "An error occurred while processing your message. Please try again."
+        )
+
+
 @admin_router.callback_query()
 async def default_admin_callback_query(
     callback: CallbackQuery, state: FSMContext, repo: RequestsRepo
@@ -315,6 +376,65 @@ async def default_admin_callback_query(
                 logging.error(f"Error in reject_settlement: {e}")
                 await callback.answer(
                     "❌ خطا در رد درخواست تسویه حساب.", show_alert=True
+                )
+        elif callback_data == "send_message":
+            try:
+                await state.set_state(InputCustomMessage.wait_for_message)
+                msg = await callback.message.edit_text("پیام را وارد نمایید.")
+                await state.set_data({"menu_message_ids": [msg.message_id]})
+                logging.info(
+                    f"Admin {callback.message.from_user.id} initiated broadcast message"
+                )
+            except Exception as e:
+                logging.error(f"Error in broadcaster_handler: {e}")
+                await callback.message.edit_text(
+                    "An error occurred. Please try again later."
+                )
+        elif callback_data.startswith("SendMessage"):
+            try:
+                action = callback.data.split(":")[1]
+                data = await state.get_data()
+                message_to_broadcast = data.get("admin_msg")
+                menu_message_ids = data.get("menu_message_ids", [])
+
+                # Delete all menu messages
+                for menu_message_id in menu_message_ids:
+                    try:
+                        await callback.bot.delete_message(
+                            callback.message.chat.id, menu_message_id
+                        )
+                    except Exception as e:
+                        logging.error(
+                            f"Failed to delete menu message {menu_message_id}: {e}"
+                        )
+
+                if action == "confirm":
+                    await callback.answer(
+                        "Broadcasting started. Please wait for the report."
+                    )
+                    all_users_chat_ids = await repo.sellers.get_all_chat_ids()
+
+                    successful, failed = await broadcast_messages(
+                        callback.bot, all_users_chat_ids, message_to_broadcast
+                    )
+
+                    report = (
+                        f"Broadcast completed:\nSuccessful: "
+                        f"{successful}\nFailed: {failed}\nTotal: {len(all_users_chat_ids)}"
+                    )
+                    await callback.message.answer(report)
+                    logging.info(
+                        f"Admin {callback.from_user.id} completed broadcast. Success: {successful}, Failed: {failed}"
+                    )
+                else:
+                    await callback.answer("Broadcast cancelled.")
+                    logging.info(f"Admin {callback.from_user.id} cancelled broadcast")
+
+                await state.clear()
+            except Exception as e:
+                logging.error(f"Error in send_broadcast: {e}")
+                await callback.message.answer(
+                    "An error occurred during the broadcast process. Please try again later."
                 )
         else:
             logging.info(f"undefined callback: {callback_data}")
