@@ -343,6 +343,47 @@ class VPNAccountingService:
         except Exception as e:
             logging.error(f"Error deleting expired services: {str(e)}", exc_info=True)
 
+    async def notify_expiring_services(self):
+        """
+        Notify sellers about their services that will expire in 3 days.
+        Groups services by seller and sends a consolidated list.
+        """
+        logging.info("Starting to notify about services expiring in 3 days")
+
+        try:
+            async with self.session_pool() as session:
+                repo = RequestsRepo(session)
+
+                # Get services expiring in 3 days
+                expiring_services = await repo.services.get_services_expiring_soon(
+                    days_threshold=3
+                )
+
+                if not expiring_services:
+                    logging.info("No services found that are expiring in 3 days")
+                    return
+
+                logging.info(
+                    f"Found {len(expiring_services)} services expiring in 3 days"
+                )
+
+                # Group services by seller
+                services_by_seller = {}
+                for service in expiring_services:
+                    seller_id = service.seller_id
+                    if seller_id not in services_by_seller:
+                        services_by_seller[seller_id] = []
+                    services_by_seller[seller_id].append(service)
+
+                # Send notifications to each seller
+                for seller_id, services in services_by_seller.items():
+                    await self._notify_seller_about_expiring_services(services)
+
+        except Exception as e:
+            logging.error(
+                f"Error notifying about expiring services: {str(e)}", exc_info=True
+            )
+
     async def _notify_service_activation(self, service: Service):
         """Send notification to user about service activation"""
         try:
@@ -498,3 +539,53 @@ class VPNAccountingService:
 
         except Exception as e:
             logging.error(f"Error sending deletion notification: {str(e)}")
+
+    async def _notify_seller_about_expiring_services(self, services: list[Service]):
+        """
+        Send a notification to a seller about their services that will expire soon.
+
+        Args:
+            services: List of services belonging to the same seller that will expire soon
+        """
+        if not services:
+            return
+
+        try:
+            # Get the seller's chat ID (all services belong to the same seller)
+            seller = services[0].seller
+            chat_id = seller.chat_id
+
+            if not chat_id:
+                logging.warning(
+                    f"No chat ID found for seller {seller.id}, skipping notification"
+                )
+                return
+
+            # Format expiry date (should be the same for all services in this notification)
+            expiry_date = services[0].expiry_date
+            expiry_date_str = convert_to_shamsi(expiry_date)
+
+            # Create message header
+            message = (
+                f"⚠️ {html.bold('اعلان سرویس‌های در حال انقضا')} ⚠️\n\n"
+                f"کاربر گرامی، سرویس‌های VPN زیر {html.bold('در تاریخ ' + expiry_date_str)} منقضی خواهند شد:\n\n"
+            )
+
+            # Add each service to the message
+            for i, service in enumerate(services, 1):
+                message += f"{i}. {html.code(service.peer.public_id)} \n"
+
+            # Add footer with instructions
+            message += (
+                "\nلطفاً برای جلوگیری از قطع سرویس، نسبت به تمدید آنها اقدام نمایید."
+                "با ضربه زدن برروی نام سرویس میتوانید آنرا کپی کرده و از قسمت جستجو جزییات را مشاهده کنید."
+            )
+
+            # Send message
+            await self._send_rate_limited_message(chat_id, message)
+            logging.info(
+                f"Sent expiring services notification to user {chat_id} for {len(services)} services"
+            )
+
+        except Exception as e:
+            logging.error(f"Error sending expiring services notification: {str(e)}")

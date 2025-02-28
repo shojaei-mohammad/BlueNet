@@ -56,8 +56,17 @@ class SchedulerService:
             )
             self.scheduler.add_job(
                 self.vpn_accounting.delete_expired_services,
-                trigger=IntervalTrigger(minutes=1),
+                trigger=IntervalTrigger(hours=24),  # Run once a day
                 id="delete_expired_services",
+                replace_existing=True,
+                misfire_grace_time=300,  # 5 minutes grace time
+                max_instances=1,
+            )
+
+            self.scheduler.add_job(
+                self.vpn_accounting.notify_expiring_services,
+                trigger=IntervalTrigger(hours=24),  # Run once a day
+                id="notify_expiring_services_job",
                 replace_existing=True,
                 misfire_grace_time=300,  # 5 minutes grace time
                 max_instances=1,

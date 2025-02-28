@@ -1,6 +1,6 @@
 # infrastructure/database/repo/services.py
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Tuple, List, Optional
 from uuid import UUID
 
@@ -598,4 +598,52 @@ class ServiceRepo(BaseRepo):
             logging.error(
                 f"Database error in get_services_past_deletion_date: {str(e)}"
             )
+            raise
+
+    # Add to services repository class
+    async def get_services_expiring_soon(
+        self, days_threshold: int = 3
+    ) -> list[Service]:
+        """
+        Get active services that will expire in the specified number of days.
+
+        Args:
+            days_threshold: Number of days before expiry to check for
+
+        Returns:
+            List of services that will expire in the specified days
+        """
+        try:
+            # Calculate the date threshold
+            target_date = datetime.now() + timedelta(days=days_threshold)
+
+            # We want services where expiry_date is between today+days_threshold and today+days_threshold+1
+            # This gives us services expiring on that specific day
+            next_day = target_date + timedelta(days=1)
+
+            stmt = (
+                select(Service)
+                .options(
+                    selectinload(Service.seller),
+                    selectinload(Service.tariff),
+                    selectinload(Service.peer),
+                )
+                .where(
+                    and_(
+                        Service.status == ServiceStatus.ACTIVE,
+                        Service.expiry_date >= target_date,
+                        Service.expiry_date < next_day,
+                    )
+                )
+                .order_by(
+                    Service.seller_id
+                )  # Group by seller to make processing easier
+            )
+
+            result = await self.session.execute(stmt)
+            services = result.scalars().all()
+            return list(services)
+
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_services_expiring_soon: {str(e)}")
             raise
