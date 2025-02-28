@@ -602,26 +602,29 @@ class ServiceRepo(BaseRepo):
 
     # Add to services repository class
     async def get_services_expiring_soon(
-        self, days_threshold: int = 3
+        self, days_threshold: int = 3, seller_id: Optional[int] = None
     ) -> list[Service]:
         """
-        Get active services that will expire in the specified number of days.
+        Get active services that will expire in exactly the specified number of days.
 
         Args:
             days_threshold: Number of days before expiry to check for
+            seller_id: Optional seller ID to filter by
 
         Returns:
-            List of services that will expire in the specified days
+            List of services that will expire in exactly the specified days
         """
         try:
-            # Calculate the date threshold
-            target_date = datetime.now() + timedelta(days=days_threshold)
+            # Calculate the target date range
+            today = datetime.now().date()
+            target_date = today + timedelta(days=days_threshold)
 
-            # We want services where expiry_date is between today+days_threshold and today+days_threshold+1
-            # This gives us services expiring on that specific day
-            next_day = target_date + timedelta(days=1)
+            # Create datetime objects for the start and end of the target day
+            start_of_day = datetime.combine(target_date, datetime.min.time())
+            end_of_day = datetime.combine(target_date, datetime.max.time())
 
-            stmt = (
+            # Build the base query
+            query = (
                 select(Service)
                 .options(
                     selectinload(Service.seller),
@@ -631,16 +634,22 @@ class ServiceRepo(BaseRepo):
                 .where(
                     and_(
                         Service.status == ServiceStatus.ACTIVE,
-                        Service.expiry_date >= target_date,
-                        Service.expiry_date < next_day,
+                        Service.expiry_date >= start_of_day,
+                        Service.expiry_date <= end_of_day,
                     )
                 )
-                .order_by(
-                    Service.seller_id
-                )  # Group by seller to make processing easier
             )
 
-            result = await self.session.execute(stmt)
+            # Add seller filter if provided
+            if seller_id is not None:
+                query = query.where(Service.seller_id == seller_id)
+
+            # Add ordering
+            query = query.order_by(
+                Service.seller_id
+            )  # Group by seller to make processing easier
+
+            result = await self.session.execute(query)
             services = result.scalars().all()
             return list(services)
 

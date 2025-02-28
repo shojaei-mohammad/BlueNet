@@ -43,7 +43,10 @@ menu_structure = {
         "back": "manage_services",
         "menu_type": "user",
         "options": [
-            {"text": "🔔 کاربران در حال انقضا ", "callback_data": "rep_expire"},
+            {
+                "text": "🔔 کاربران در حال انقضا ",
+                "callback_data": "show_expiring_services",
+            },
         ],
     },
     "create_service": {

@@ -3,6 +3,7 @@
 from .admin import admin_router
 from .callbacks import callback_router
 from .echo import echo_router
+from .expiring_services import expiring_services_router
 from .purchase_states import purchase_router
 from .router_status import router_status_router
 from .service_details import service_details_router
@@ -22,6 +23,7 @@ routers_list = [
     settlement_router,
     router_status_router,
     transaction_history_router,
+    expiring_services_router,
     callback_router,
     echo_router,  # echo_router must be last
 ]
