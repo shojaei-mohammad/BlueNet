@@ -1,10 +1,12 @@
 # tgbot/handlers/services.py
 
 import logging
+from typing import Dict
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy import select, func
 
 from infrastructure.database.models import Service, ServiceStatus
 from infrastructure.database.models.sellers import Seller
@@ -80,6 +82,44 @@ def create_services_keyboard(
     return builder.as_markup()
 
 
+async def get_service_status_counts(
+    repo: RequestsRepo, seller_id: int
+) -> Dict[ServiceStatus, int]:
+    """
+    Get counts of services by status for a seller.
+
+    Args:
+        repo: Repository instance
+        seller_id: Seller ID
+
+    Returns:
+        Dictionary mapping status to count
+    """
+    try:
+        # Initialize counts dictionary
+        status_counts = {status: 0 for status in ServiceStatus}
+
+        # Get all services for the seller to count by status
+        # We could optimize this with a GROUP BY query if needed
+        stmt = (
+            select(Service.status, func.count())
+            .where(Service.seller_id == seller_id)
+            .group_by(Service.status)
+        )
+
+        result = await repo.session.execute(stmt)
+        for status, count in result:
+            if status in status_counts:
+                status_counts[status] = count
+
+        return status_counts
+
+    except Exception as e:
+        logging.error(f"Error in get_service_status_counts: {e}")
+        # Return empty counts on error
+        return {status: 0 for status in ServiceStatus}
+
+
 @services_router.callback_query(F.data == "services")
 async def show_services_list(
     callback: CallbackQuery, seller: Seller, repo: RequestsRepo
@@ -94,11 +134,8 @@ async def show_services_list(
         # Calculate total pages
         total_pages = (total_count + SERVICES_PER_PAGE - 1) // SERVICES_PER_PAGE
 
-        # Count services by status
-        status_counts = {status: 0 for status in ServiceStatus}
-        for service in services:
-            if service.status in status_counts:
-                status_counts[service.status] += 1
+        # Get counts for all services by status
+        status_counts = await get_service_status_counts(repo, seller.id)
 
         # Create message text
         text = (
@@ -142,11 +179,8 @@ async def handle_services_pagination(
         # Calculate total pages
         total_pages = (total_count + SERVICES_PER_PAGE - 1) // SERVICES_PER_PAGE
 
-        # Count services by status
-        status_counts = {status: 0 for status in ServiceStatus}
-        for service in services:
-            if service.status in status_counts:
-                status_counts[service.status] += 1
+        # Get counts for all services by status
+        status_counts = await get_service_status_counts(repo, seller.id)
 
         # Update message with new page
         text = (
