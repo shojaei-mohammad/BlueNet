@@ -2,12 +2,13 @@
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Tuple, List, Dict
 
-from sqlalchemy import update, select
+from sqlalchemy import update, select, func, and_, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 
+from infrastructure.database.models import ServiceStatus, Service
 from infrastructure.database.models.sellers import (
     Seller,
     SellerStatus,
@@ -171,3 +172,129 @@ class SellerRepo(BaseRepo):
         except SQLAlchemyError as e:
             logging.error(f"Failed to get users chat id: {e}")
             raise
+
+    async def get_paginated_sellers(
+        self, page: int = 1, per_page: int = 10
+    ) -> Tuple[List[Seller], int]:
+        """
+        Get paginated list of sellers with their total count
+
+        Args:
+            page: Page number (starting from 1)
+            per_page: Number of sellers per page
+
+        Returns:
+            Tuple of (list of sellers, total count)
+        """
+        # Calculate offset
+        offset = (page - 1) * per_page
+
+        # Query for sellers with pagination
+        query = select(Seller).order_by(Seller.created_at.desc())
+        paginated_query = query.offset(offset).limit(per_page)
+
+        # Execute queries
+        result = await self.session.execute(paginated_query)
+        sellers = list(result.scalars().all())
+
+        # Get total count
+        count_query = select(func.count()).select_from(Seller)
+        count_result = await self.session.execute(count_query)
+        total_count = count_result.scalar()
+
+        return sellers, total_count
+
+    async def get_seller_with_service_stats(
+        self, seller_id: int
+    ) -> Tuple[Optional[Seller], Dict[ServiceStatus, int]]:
+        """
+        Get seller details along with counts of their services by status
+
+        Args:
+            seller_id: ID of the seller
+
+        Returns:
+            Tuple of (seller object, dictionary of service counts by status)
+        """
+        # Get seller
+        seller_query = select(Seller).where(Seller.id == seller_id)
+        result = await self.session.execute(seller_query)
+        seller = result.scalars().first()
+
+        if not seller:
+            return None, {}
+
+        # Get service counts by status
+        stats = {}
+        for status in ServiceStatus:
+            count_query = (
+                select(func.count())
+                .select_from(Service)
+                .where(and_(Service.seller_id == seller_id, Service.status == status))
+            )
+            count_result = await self.session.execute(count_query)
+            stats[status] = count_result.scalar() or 0
+
+        return seller, stats
+
+    async def update_seller_discount_and_debt_limit(
+        self,
+        seller_id: int,
+        discount_percent: Decimal = None,
+        debt_limit: Decimal = None,
+    ) -> Optional[Seller]:
+        """
+        Update seller discount percentage and/or debt limit
+
+        Args:
+            seller_id: ID of the seller
+            discount_percent: New discount percentage (0-100)
+            debt_limit: New debt limit
+
+        Returns:
+            Updated seller object or None if not found
+        """
+        # Get seller
+        seller_query = select(Seller).where(Seller.id == seller_id)
+        result = await self.session.execute(seller_query)
+        seller = result.scalars().first()
+
+        if not seller:
+            return None
+
+        # Update fields
+        if discount_percent is not None:
+            seller.discount_percent = discount_percent
+
+        if debt_limit is not None:
+            seller.debt_limit = debt_limit
+
+        await self.session.commit()
+        await self.session.refresh(seller)
+        return seller
+
+    async def search_sellers(self, query: str) -> List[Seller]:
+        """
+        Search for sellers by username or full name
+
+        Args:
+            query: Search query string
+
+        Returns:
+            List of matching sellers
+        """
+        # Prepare search query with case-insensitive matching
+        search_query = (
+            select(Seller)
+            .where(
+                or_(
+                    Seller.username.ilike(f"%{query}%"),
+                    Seller.full_name.ilike(f"%{query}%"),
+                )
+            )
+            .order_by(Seller.created_at.desc())
+        )
+
+        # Execute query
+        result = await self.session.execute(search_query)
+        return list(result.scalars().all())

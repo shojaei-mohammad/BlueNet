@@ -12,7 +12,7 @@ menu_structure = {
         "menu_type": "admin",
         "options": [
             {"text": "📨 ارسال پیام به فروشندگان", "callback_data": "send_message"},
-            {"text": "🤝 مدیریت عاملان فروش", "callback_data": "manage_resellers"},
+            {"text": "🤝 مدیریت عاملان فروش", "callback_data": "sellers"},
         ],
     },
     "users_main_menu": {

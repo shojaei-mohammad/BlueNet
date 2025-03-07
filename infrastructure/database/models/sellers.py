@@ -53,8 +53,7 @@ class Seller(Base, TableNameMixin, TimestampMixin):
     discount_percent: Mapped[Decimal] = mapped_column(
         DECIMAL(precision=16, scale=2), server_default="0"
     )
-    total_services: Mapped[int] = mapped_column(Integer, server_default="0")
-    active_services: Mapped[int] = mapped_column(Integer, server_default="0")
+
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=false(), index=True)
     auto_suspend: Mapped[bool] = mapped_column(Boolean, server_default=false())
     status: Mapped[SellerStatus] = mapped_column(

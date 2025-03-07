@@ -1,4 +1,4 @@
-# tgbot/handlers/user.py
+# tgbot/handlers/start.py
 import logging
 
 from aiogram import Router, html

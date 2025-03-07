@@ -1,4 +1,3 @@
-# tgbot/handlers/admin.py
 import logging
 from decimal import InvalidOperation, Decimal
 from uuid import UUID
@@ -7,6 +6,7 @@ from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -26,6 +26,11 @@ from tgbot.states.admin import SellerRegistration, InputCustomMessage
 admin_router = Router()
 admin_router.message.filter(AdminFilter())
 admin_router.callback_query.filter(AdminFilter())
+
+
+# Define proper state class for individual seller messaging
+class InputSellerMessage(StatesGroup):
+    wait_for_message = State()
 
 
 async def _process_menu_navigation(callback: CallbackQuery, menu_type: str) -> None:
@@ -236,6 +241,76 @@ async def broadcast_handler(message: Message, state: FSMContext):
         )
 
 
+# New handler for individual seller messages
+@admin_router.message(InputSellerMessage.wait_for_message)
+async def seller_message_handler(
+    message: Message, state: FSMContext, repo: RequestsRepo
+):
+    try:
+        input_text = message.text
+        await message.delete()
+
+        # Get data from state
+        data = await state.get_data()
+        seller_id = data.get("seller_id")
+        seller_name = data.get("seller_name", "فروشنده")
+
+        if not seller_id:
+            await message.answer("❌ خطا: شناسه فروشنده یافت نشد.")
+            await state.clear()
+            return
+
+        confirm_text = (
+            f"📤 پیام به {seller_name}\n\n"
+            "درصورت تایید با فشردن دکمه ارسال پیام شما ارسال خواهد شد.\n"
+            "در صورت نیاز به ویرایش فقط کافیست متن ویرایش شده رو دوباره ارسال کنید."
+        )
+        confirm_text += "➖" * 17
+        confirm_text += "\n\n" + input_text
+
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📨 ارسال",
+                        callback_data=f"SendSellerMessage:confirm:{seller_id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ لغو", callback_data="SendSellerMessage:reject"
+                    )
+                ],
+            ]
+        )
+
+        # Get existing menu message IDs
+        message_ids = data.get("menu_message_ids", [])
+
+        # Delete previous menu messages
+        for msg_id in message_ids:
+            try:
+                await message.bot.delete_message(
+                    chat_id=message.chat.id, message_id=msg_id
+                )
+            except Exception as e:
+                logging.error(f"Failed to delete menu message {msg_id}: {e}")
+
+        # Send new menu message
+        sent_message = await message.answer(text=confirm_text, reply_markup=markup)
+
+        # Update menu message IDs in state
+        message_ids = [sent_message.message_id]
+        await state.update_data(menu_message_ids=message_ids, admin_msg=input_text)
+
+        logging.info(
+            f"Admin {message.from_user.id} prepared message to seller {seller_id}"
+        )
+    except Exception as e:
+        logging.error(f"Error in seller_message_handler: {e}")
+        await message.answer("❌ خطا در پردازش پیام. لطفاً دوباره تلاش کنید.")
+
+
 @admin_router.callback_query()
 async def default_admin_callback_query(
     callback: CallbackQuery, state: FSMContext, repo: RequestsRepo
@@ -244,7 +319,6 @@ async def default_admin_callback_query(
     Asynchronous handler for callback queries triggered by inline keyboard buttons.
     """
     try:
-
         callback_data = callback.data
         chat_id = callback.message.chat.id
 
@@ -265,33 +339,112 @@ async def default_admin_callback_query(
             )
             await state.set_state(SellerRegistration.SET_DISCOUNT)
         elif callback_data.startswith("reject_seller_"):
-
             seller_id = int(callback_data.split("_")[2])
 
             """Handle user rejection"""
-
             try:
-
                 seller = await repo.sellers.update_seller_status(
                     seller_id=seller_id,
                     status=SellerStatus.BANNED,
                     is_active=False,
                 )
                 # Notify the seller
-
                 await callback.bot.send_message(
                     chat_id=seller.chat_id, text="⛔️ متاسفانه درخواست شما تایید نشد."
                 )
-
                 await callback.message.edit_text(text="✅ درخواست با موفقیت رد شد.")
-
             except Exception as e:
-
                 logging.error(f"Error rejecting user: {e}")
-
                 await callback.message.edit_text(
                     "❌ خطا در رد درخواست. لطفا مجددا تلاش کنید."
                 )
+        # New callback handler for sending messages to individual sellers
+        elif callback_data.startswith("seller_message_"):
+            seller_id = int(callback_data.removeprefix("seller_message_"))
+
+            # Get seller info for confirmation message
+            seller = await repo.sellers.get_seller_by_id(seller_id)
+            if not seller:
+                await callback.answer("❌ فروشنده مورد نظر یافت نشد.", show_alert=True)
+                return
+
+            seller_name = seller.username or seller.full_name or f"فروشنده {seller_id}"
+
+            # Set state and store seller info
+            await state.set_state(InputSellerMessage.wait_for_message)
+            msg = await callback.message.edit_text(
+                f"📝 لطفاً پیام خود را برای {seller_name} وارد کنید:"
+            )
+
+            await state.update_data(
+                {
+                    "menu_message_ids": [msg.message_id],
+                    "seller_id": seller_id,
+                    "seller_name": seller_name,
+                }
+            )
+
+            logging.info(
+                f"Admin {callback.from_user.id} initiated message to seller {seller_id}"
+            )
+        elif callback_data.startswith("SendSellerMessage:"):
+            parts = callback_data.split(":")
+            action = parts[1]
+
+            data = await state.get_data()
+            message_to_send = data.get("admin_msg")
+            menu_message_ids = data.get("menu_message_ids", [])
+
+            # Delete all menu messages
+            for menu_message_id in menu_message_ids:
+                try:
+                    await callback.bot.delete_message(
+                        callback.message.chat.id, menu_message_id
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"Failed to delete menu message {menu_message_id}: {e}"
+                    )
+
+            if action == "confirm":
+                seller_id = int(parts[2])
+                seller = await repo.sellers.get_seller_by_id(seller_id)
+
+                if not seller:
+                    await callback.answer(
+                        "❌ فروشنده مورد نظر یافت نشد.", show_alert=True
+                    )
+                    await state.clear()
+                    return
+
+                # Send message to the seller
+                try:
+                    await callback.bot.send_message(
+                        chat_id=seller.chat_id,
+                        text=f"📨 پیام از ادمین:\n\n{message_to_send}",
+                    )
+
+                    # Confirm to admin
+                    seller_name = (
+                        seller.username or seller.full_name or f"فروشنده {seller_id}"
+                    )
+                    await callback.message.answer(
+                        f"✅ پیام با موفقیت به {seller_name} ارسال شد."
+                    )
+                    logging.info(
+                        f"Admin {callback.from_user.id} sent message to seller {seller_id}"
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to send message to seller {seller_id}: {e}")
+                    await callback.message.answer("❌ خطا در ارسال پیام به فروشنده.")
+            else:
+                await callback.answer("ارسال پیام لغو شد.")
+                await callback.message.answer("❌ ارسال پیام لغو شد.")
+                logging.info(
+                    f"Admin {callback.from_user.id} cancelled message to seller"
+                )
+
+            await state.clear()
         elif callback_data.startswith("confirm_settlement_"):
             try:
                 transaction_id = UUID(callback_data.removeprefix("confirm_settlement_"))

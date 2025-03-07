@@ -6,14 +6,16 @@ from .echo import echo_router
 from .expiring_services import expiring_services_router
 from .purchase_states import purchase_router
 from .router_status import router_status_router
+from .sellers import sellers_router
 from .service_details import service_details_router
 from .service_search import search_router
 from .services import services_router
 from .settlement import settlement_router
+from .start import user_router
 from .transactions import transaction_history_router
-from .user import user_router
 
 routers_list = [
+    sellers_router,
     admin_router,
     user_router,
     search_router,
