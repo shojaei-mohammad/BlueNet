@@ -551,70 +551,73 @@ async def process_debt_limit_input(
 @sellers_router.callback_query(F.data.startswith("seller_services_"))
 async def show_seller_services(callback: CallbackQuery, repo: RequestsRepo):
     """Show services for a specific seller."""
-    try:
-        seller_id = int(callback.data.removeprefix("seller_services_"))
+    await callback.answer("این قسمت توسعه داده نشده است.", show_alert=True)
 
-        # Get seller
-        seller = await repo.sellers.get_seller_by_id(seller_id)
-
-        if not seller:
-            await callback.answer("❌ فروشنده مورد نظر یافت نشد.", show_alert=True)
-            return
-
-        # Get services for this seller (first page)
-        services, total_count = await repo.services.get_seller_services(
-            seller_id=seller_id, page=1, per_page=5
-        )
-
-        if not services:
-            await callback.answer("این فروشنده هیچ سرویسی ندارد.", show_alert=True)
-            return
-
-        # Create services list text
-        text = f"📋 لیست سرویس‌های فروشنده {seller.username or seller.full_name}:\n\n"
-
-        for i, service in enumerate(services, 1):
-            status_emoji = {
-                ServiceStatus.UNUSED: "⚪",
-                ServiceStatus.INACTIVE: "🔴",
-                ServiceStatus.ACTIVE: "🟢",
-                ServiceStatus.EXPIRED: "🟡",
-                ServiceStatus.DELETED: "⚫",
-            }.get(service.status, "❓")
-
-            text += (
-                f"{i}. {status_emoji} {service.peer.public_id if service.peer else 'N/A'}\n"
-                f"   💰 قیمت: {format_currency(service.seller_price, convert_to_farsi=True)} تومان\n\n"
-            )
-
-        # Create keyboard to go back to seller details
-        kb = InlineKeyboardBuilder()
-        kb.button(
-            text="🔙 بازگشت به اطلاعات فروشنده",
-            callback_data=f"seller_view_{seller_id}",
-        )
-        kb.adjust(1)
-
-        await callback.message.edit_text(text=text, reply_markup=kb.as_markup())
-        await callback.answer()
-
-    except Exception as e:
-        logging.error(f"Error in show_seller_services: {e}", exc_info=True)
-        await callback.answer("❌ خطا در نمایش سرویس‌های فروشنده.", show_alert=True)
+    # try:
+    #     seller_id = int(callback.data.removeprefix("seller_services_"))
+    #
+    #     # Get seller
+    #     seller = await repo.sellers.get_seller_by_id(seller_id)
+    #
+    #     if not seller:
+    #         await callback.answer("❌ فروشنده مورد نظر یافت نشد.", show_alert=True)
+    #         return
+    #
+    #     # Get services for this seller (first page)
+    #     services, total_count = await repo.services.get_seller_services(
+    #         seller_id=seller_id, page=1, per_page=5
+    #     )
+    #
+    #     if not services:
+    #         await callback.answer("این فروشنده هیچ سرویسی ندارد.", show_alert=True)
+    #         return
+    #
+    #     # Create services list text
+    #     text = f"📋 لیست سرویس‌های فروشنده {seller.username or seller.full_name}:\n\n"
+    #
+    #     for i, service in enumerate(services, 1):
+    #         status_emoji = {
+    #             ServiceStatus.UNUSED: "⚪",
+    #             ServiceStatus.INACTIVE: "🔴",
+    #             ServiceStatus.ACTIVE: "🟢",
+    #             ServiceStatus.EXPIRED: "🟡",
+    #             ServiceStatus.DELETED: "⚫",
+    #         }.get(service.status, "❓")
+    #
+    #         text += (
+    #             f"{i}. {status_emoji} {service.peer.public_id if service.peer else 'N/A'}\n"
+    #             f"   💰 قیمت: {format_currency(service.seller_price, convert_to_farsi=True)} تومان\n\n"
+    #         )
+    #
+    #     # Create keyboard to go back to seller details
+    #     kb = InlineKeyboardBuilder()
+    #     kb.button(
+    #         text="🔙 بازگشت به اطلاعات فروشنده",
+    #         callback_data=f"seller_view_{seller_id}",
+    #     )
+    #     kb.adjust(1)
+    #
+    #     await callback.message.edit_text(text=text, reply_markup=kb.as_markup())
+    #     await callback.answer()
+    #
+    # except Exception as e:
+    #     logging.error(f"Error in show_seller_services: {e}", exc_info=True)
+    #     await callback.answer("❌ خطا در نمایش سرویس‌های فروشنده.", show_alert=True)
 
 
 @sellers_router.callback_query(F.data == "sellers_search")
 async def start_seller_search(callback: CallbackQuery, state: FSMContext):
     """Start seller search process."""
     try:
-        await callback.message.edit_text(
-            "🔍 لطفاً نام کاربری یا نام فروشنده مورد نظر را وارد کنید:",
-            reply_markup=None,
-        )
-
-        # Set state
-        await state.set_state(SellerManagementState.waiting_for_search_query)
-        await callback.answer()
+        await callback.answer("این قسمت توسعه داده نشده است.", show_alert=True)
+        # await callback.message.edit_text(
+        #     "🔍 لطفاً نام کاربری یا نام فروشنده مورد نظر را وارد کنید:",
+        #     reply_markup=None,
+        # )
+        #
+        # # Set state
+        # await state.set_state(SellerManagementState.waiting_for_search_query)
+        # await callback.answer()
 
     except Exception as e:
         logging.error(f"Error in start_seller_search: {e}", exc_info=True)
@@ -668,6 +671,19 @@ async def process_seller_search(
         logging.error(f"Error in process_seller_search: {e}", exc_info=True)
         await message.answer("❌ خطا در جستجوی فروشنده. لطفاً دوباره تلاش کنید.")
         await state.clear()
+
+
+@sellers_router.callback_query(F.data == "seller_disable_services")
+async def start_seller_search(callback: CallbackQuery, state: FSMContext):
+    """Start seller search process."""
+    await callback.answer("این قسمت توسعه داده نشده است.", show_alert=True)
+
+
+@sellers_router.callback_query(F.data == "seller_enable_services")
+async def start_seller_search(callback: CallbackQuery, state: FSMContext):
+    """Start seller search process."""
+
+    await callback.answer("این قسمت توسعه داده نشده است.", show_alert=True)
 
 
 @sellers_router.callback_query(F.data == "ignore")

@@ -82,12 +82,9 @@ def create_seller_detail_keyboard(seller: Seller) -> InlineKeyboardMarkup:
         callback_data=f"seller_enable_services_{seller.id}",
     )
 
-    # Add back button
-    builder.button(text="🔙 بازگشت", callback_data="sellers")
-
     # Adjust layout: 2 buttons per row for actions, 1 button per row for others
     builder.adjust(2, 1, 1, 1, 1, 1, 1)
-    markup = add_return_buttons(builder, "seller")
+    markup = add_return_buttons(builder, "sellers")
 
     return markup
 
