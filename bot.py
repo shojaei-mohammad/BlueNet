@@ -13,6 +13,7 @@ from infrastructure.database.setup import create_engine, create_session_pool
 from infrastructure.scheduler.scheduler_service import SchedulerService
 from tgbot.config import load_config, Config
 from tgbot.handlers import routers_list
+from tgbot.handlers.commands import set_bot_commands
 from tgbot.middlewares.config import ConfigMiddleware
 from tgbot.middlewares.database import DatabaseMiddleware
 from tgbot.services import broadcaster
@@ -115,6 +116,7 @@ async def main():
     dp.include_routers(*routers_list)
 
     register_global_middlewares(dp, config, session_pool)
+    await set_bot_commands(bot)
 
     await on_startup(bot, config.tg_bot.admin_ids)
     # Set up and start the scheduler
