@@ -138,6 +138,6 @@ def create_sellers_keyboard(
     builder.row(InlineKeyboardButton(text="🔍 جستجو", callback_data="sellers_search"))
 
     # Add back button using helper
-    add_return_buttons(builder, "admins_main_menu", include_main_menu=True)
+    add_return_buttons(builder, "admins_main_menu")
 
     return builder.as_markup()
