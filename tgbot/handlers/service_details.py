@@ -161,7 +161,7 @@ def format_service_details(service: Service) -> str:
     )
 
     return (
-        f"{html.bold('🔖 شناسه سرویس:')} {html.code(service.id)}\n"
+        "سلام این اطلاعات اشتراک شما است:\n\n"
         f"{html.bold('🔖 نام سرویس:')} {service.peer.public_id or '-'}\n"
         f"{html.bold('#️⃣ توضیحات فروشنده:')} {service.custom_name or '-'}\n"
         f"{html.bold('📅 تاریخ خرید:')} {purchase_date}\n"
@@ -688,7 +688,7 @@ async def handle_renewal_confirmation(
         admin_notification = (
             f"🔄 تمدید سرویس\n\n"
             f"👤 فروشنده: {seller.username}\n"
-            f"💸 بدهی: {seller.current_debt}\n"
+            f"💸 بدهی: {format_currency(seller.current_debt, convert_to_farsi=True)}\n"
             f"📈 درصد تخفیف: {seller.discount_percent}\n"
             f"📱 شناسه سرویس: {service.id}\n"
             f"🔖 شناسه عمومی: {service.peer.public_id}\n"
