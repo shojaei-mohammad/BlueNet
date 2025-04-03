@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey, Enum, TIMESTAMP, DECIMAL, text, String
+from sqlalchemy import ForeignKey, Enum, TIMESTAMP, DECIMAL, text, String, BIGINT
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
@@ -55,13 +55,13 @@ class Service(Base, TableNameMixin, TimestampMixin):
     original_price: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2))
     seller_price: Mapped[Decimal] = mapped_column(DECIMAL(precision=16, scale=2))
     total_bytes: Mapped[Optional[int]] = mapped_column(
-        server_default="0", nullable=True
+        BIGINT, server_default="0", nullable=True
     )
     download_bytes: Mapped[Optional[int]] = mapped_column(
-        server_default="0", nullable=True
+        BIGINT, server_default="0", nullable=True
     )
     upload_bytes: Mapped[Optional[int]] = mapped_column(
-        server_default="0", nullable=True
+        BIGINT, server_default="0", nullable=True
     )
     last_handshake: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     custom_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
