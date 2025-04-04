@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import insert, select, delete, and_, desc
+from sqlalchemy import insert, select, delete, and_, desc, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from infrastructure.database.models import Transaction
@@ -125,6 +125,23 @@ class TransactionRepo(BaseRepo):
             transactions = result.scalars().all()
 
             return list(transactions), total_count
+
+        except SQLAlchemyError as e:
+            logging.error(
+                f"Database error in get_seller_transactions_paginated: {str(e)}"
+            )
+            raise
+
+    async def update_transaction_proof(self, transaction_id: UUID, proof: str) -> None:
+
+        try:
+            stmt = (
+                update(Transaction)
+                .where(Transaction.id == transaction_id)
+                .values(proof=proof)
+            )
+            await self.session.execute(stmt)
+            await self.session.commit()
 
         except SQLAlchemyError as e:
             logging.error(

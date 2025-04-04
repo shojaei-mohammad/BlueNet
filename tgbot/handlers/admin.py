@@ -461,6 +461,20 @@ async def default_admin_callback_query(
                     await callback.answer("❌ فروشنده یافت نشد.", show_alert=True)
                     return
 
+                # Save the proof to the transaction (either text content or photo file_id)
+                proof_content = None
+                if callback.message.photo:
+                    # Store the file_id of the largest photo
+                    proof_content = callback.message.photo[-1].file_id
+                else:
+                    # Store the text message
+                    proof_content = callback.message.text
+
+                # Update the transaction with proof
+                await repo.transactions.update_transaction_proof(
+                    transaction_id, proof_content
+                )
+
                 # Update seller's debt
                 await repo.sellers.update_seller_dept(
                     seller_id=seller.id,
@@ -481,10 +495,32 @@ async def default_admin_callback_query(
                     reply_markup=markup,
                 )
 
-                # Update admin message
-                await callback.message.edit_text(
-                    callback.message.text + "\n\n✅ تایید شده", reply_markup=None
-                )
+                # Check if message has photo and handle accordingly
+                if callback.message.photo:
+                    # For photo messages, we can't edit the photo but we can add a caption or edit the caption
+                    try:
+                        existing_caption = callback.message.caption or ""
+                        await callback.message.edit_caption(
+                            caption=f"{existing_caption}\n\n✅ تایید شده",
+                            reply_markup=None,
+                        )
+                    except Exception as caption_e:
+                        # If we can't edit the caption (like if it's too long), delete and resend
+                        logging.error(f"Error editing caption: {caption_e}")
+                        original_photo = callback.message.photo[
+                            -1
+                        ].file_id  # Get the largest photo
+                        await callback.message.delete()
+                        await callback.bot.send_photo(
+                            chat_id=callback.message.chat.id,
+                            photo=original_photo,
+                            caption=f"{existing_caption}\n\n✅ تایید شده",
+                        )
+                else:
+                    # For text messages, edit as before
+                    await callback.message.edit_text(
+                        callback.message.text + "\n\n✅ تایید شده", reply_markup=None
+                    )
 
                 await callback.answer(
                     "✅ تسویه حساب با موفقیت تایید شد.", show_alert=True
