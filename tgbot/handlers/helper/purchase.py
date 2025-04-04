@@ -33,7 +33,7 @@ async def notify_admins(
         admin_message = (
             f"🔔 سرویس جدید خریداری شد\n\n"
             f"👤 {html.bold('فروشنده:')} {seller.username} (کد: {seller.id})\n"
-            f"💸 {html.bold('بدهی:')} {seller.current_debt}\n"
+            f"💸 {html.bold('بدهی:')} {format_currency(seller.current_debt, convert_to_farsi=True)}\n تومان "
             f"📊 {html.bold('درصد تخفیف:')} {seller.discount_percent}%\n"
             f"🏷 {html.bold('شناسه سرویس:')} {html.code(service.id)}\n"
             f"🔧 {html.bold('شناسه کانفیگ:')} {public_id}\n"
