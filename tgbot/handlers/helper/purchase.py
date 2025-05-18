@@ -260,7 +260,7 @@ async def handle_bulk_purchase(
     seller: Seller,
     quantity: int,
 ) -> None:
-    """Handle bulk purchase of multiple dynamic IPs"""
+    """Handle bulk purchase of multiple dynamic IPs with rate limiting"""
 
     # Answer callback immediately to prevent timeout
     await callback.answer("⏳ در حال پردازش درخواست شما...")
@@ -295,10 +295,14 @@ async def handle_bulk_purchase(
                 )
                 return
 
-            # Process multiple purchases
+            # Process multiple purchases with rate limiting
             purchase_service = PurchaseService(repo)
             configs = []
             services = []
+            failed_count = 0
+            max_retries = 3  # Maximum retry attempts per purchase
+            delay_between_purchases = 1.0  # 1 second between purchases
+            delay_between_configs = 0.5  # 0.5 seconds between sending configs
 
             for i in range(quantity):
                 # Update loading message with progress
@@ -306,39 +310,77 @@ async def handle_bulk_purchase(
                     f"⏳ در حال ایجاد سرویس {i + 1} از {quantity}..."
                 )
 
-                service, qr_code, config_document, public_id = (
-                    await purchase_service.process_purchase(
-                        seller=seller, tariff=tariff, interface=interface
-                    )
-                )
-                configs.append((qr_code, config_document))
-                services.append((service, public_id))
+                # Attempt purchase with retries
+                for attempt in range(max_retries):
+                    try:
+                        # Add delay between purchases
+                        if i > 0:
+                            await asyncio.sleep(delay_between_purchases)
 
-            # Send confirmation and configs
+                        service, qr_code, config_document, public_id = (
+                            await purchase_service.process_purchase(
+                                seller=seller, tariff=tariff, interface=interface
+                            )
+                        )
+                        configs.append((qr_code, config_document))
+                        services.append((service, public_id))
+                        break  # Success, exit retry loop
+                    except Exception as e:
+                        if attempt == max_retries - 1:  # Last attempt failed
+                            failed_count += 1
+                            logging.error(
+                                f"Failed to create service {i + 1} after {max_retries} attempts: {str(e)}",
+                                exc_info=True,
+                            )
+                        else:
+                            await asyncio.sleep(1)  # Wait before retry
+
+            # Send confirmation
+            success_count = quantity - failed_count
             await callback.message.answer(
-                f"✅ خرید {quantity} سرویس با موفقیت انجام شد!\n"
+                f"✅ خرید {quantity} سرویس انجام شد!\n"
+                f"موفق: {success_count}, ناموفق: {failed_count}\n"
                 f"تعرفه: {tariff.description}\n"
                 f"مبلغ کل: {format_currency(total_cost, convert_to_farsi=True)} تومان\n"
                 f"مدت: {tariff.duration_days} روز"
             )
 
-            # Send configs with progress indication
+            # Send configs with rate limiting
             for i, (qr_code, config_document) in enumerate(configs, 1):
-                await callback.message.answer(f"🔹 ارسال کانفیگ {i} از {quantity}:")
-                await callback.message.answer_photo(
-                    photo=qr_code, caption=f"کد QR کانفیگ {i}: {public_id}"
-                )
-                await callback.message.answer_document(
-                    document=config_document, caption=f"فایل کانفیگ {i}: {public_id}"
-                )
-                if i % 5 == 0:  # Add delay every 5 configs
-                    await asyncio.sleep(1)
+                try:
+                    await callback.message.answer(
+                        f"🔹 ارسال کانفیگ {i} از {success_count}:"
+                    )
+                    await callback.message.answer_photo(
+                        photo=qr_code,
+                        caption=f"کد QR کانفیگ {i}: {services[i - 1][1]}",  # Get public_id from services list
+                    )
+                    await callback.message.answer_document(
+                        document=config_document,
+                        caption=f"فایل کانفیگ {i}: {services[i - 1][1]}",
+                    )
 
-            # Notify admins
-            for service, public_id in services:
-                await notify_admins(
-                    callback.message.bot, admin_ids, service, seller, public_id
-                )
+                    # Add delay between sending configs
+                    if i < len(configs):  # No delay after last config
+                        await asyncio.sleep(delay_between_configs)
+
+                except Exception as e:
+                    logging.error(f"Failed to send config {i}: {str(e)}", exc_info=True)
+
+            # Notify admins with rate limiting
+            for i, (service, public_id) in enumerate(services, 1):
+                try:
+                    await notify_admins(
+                        callback.message.bot, admin_ids, service, seller, public_id
+                    )
+                    # Add small delay between admin notifications
+                    if i < len(services):
+                        await asyncio.sleep(0.3)
+                except Exception as e:
+                    logging.error(
+                        f"Failed to notify admins for service {i}: {str(e)}",
+                        exc_info=True,
+                    )
 
         except Exception as e:
             logging.error(f"Error processing bulk purchase: {str(e)}", exc_info=True)
