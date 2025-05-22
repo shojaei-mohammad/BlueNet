@@ -1,16 +1,16 @@
 import asyncio
 import logging
-import ssl
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
-from pathlib import Path
+from io import BytesIO
 
-import aiohttp
 import jdatetime
-from aiofiles import open as aioopen
+import qrcode
+from PIL import Image
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
+from qrcode.main import QRCode
 
 
 def convert_english_digits_to_farsi(input_number: str | Decimal | int | float) -> str:
@@ -140,116 +140,164 @@ def gb_to_bytes(gb):
     return int(gb * (1024**3))
 
 
-async def generate_qr_code(data: str) -> str:
+# async def generate_qr_code(data: str) -> str:
+#     """
+#     Generate a custom QR code using the QRCODE-MONKEY API.
+#
+#     This function takes in data to be encoded in the QR code, the path to a logo which
+#     is overlayed on the QR code, and the path to save the generated QR code image.
+#
+#     :param data: The content to be encoded in the QR code.
+#     :return: True if QR code generation and saving was successful, None otherwise.
+#     """
+#
+#     url = "https://api.qrcode-monkey.com/qr/custom"
+#
+#     try:
+#
+#         payload = {
+#             "config": {
+#                 "body": "circular",
+#                 "eye": "frame2",
+#                 "eyeBall": "ball14",
+#                 "erf1": ["fv"],
+#                 "erf2": [],
+#                 "erf3": [],
+#                 "brf1": [],
+#                 "brf2": [],
+#                 "brf3": [],
+#                 "bodyColor": "#010536",
+#                 "bgColor": "#FFFFFF",
+#                 "eye1Color": "#D52B4B",
+#                 "eye2Color": "#D52B4B",
+#                 "eye3Color": "#D52B4B",
+#                 "eyeBall1Color": "#010536",
+#                 "eyeBall2Color": "#010536",
+#                 "eyeBall3Color": "#010536",
+#                 "gradientColor1": "010536",
+#                 "gradientColor2": "010536",
+#                 "gradientType": "radial",
+#                 "gradientOnEyes": False,
+#             },
+#             "size": 300,
+#             "download": "imageUrl",
+#             "file": "png",
+#             "data": data,
+#         }
+#
+#         headers = {"cache-control": "no-cache", "content-type": "application/json"}
+#
+#         async with aiohttp.ClientSession() as session:
+#             async with session.post(url, json=payload, headers=headers) as response:
+#                 if response.status == 200:
+#                     json_response = await response.json()
+#                     qr_url = json_response["imageUrl"]
+#
+#                     if not qr_url.startswith("http"):
+#                         qr_url = "https:" + qr_url
+#
+#                     return qr_url
+#                 else:
+#                     text = await response.text()
+#                     logging.error(
+#                         f"Error generating QR code: {response.status}, {text}"
+#                     )
+#     except Exception as e:
+#         logging.error(f"An error occurred during generating qrcode {e}")
+#         raise
+
+
+async def generate_qr_code(data: str, size: int = 300) -> bytes:
     """
-    Generate a custom QR code using the QRCODE-MONKEY API.
+    Generate a QR code from input string and return as bytes.
 
-    This function takes in data to be encoded in the QR code, the path to a logo which
-    is overlayed on the QR code, and the path to save the generated QR code image.
+    Args:
+        data (str): The string data to encode in QR code
+        size (int): The size of the output image in pixels (default: 300)
 
-    :param data: The content to be encoded in the QR code.
-    :return: True if QR code generation and saving was successful, None otherwise.
+    Returns:
+        bytes: PNG image data as bytes
+
+    Raises:
+        ValueError: If data is empty or None
+        Exception: If QR code generation fails
     """
-
-    url = "https://api.qrcode-monkey.com/qr/custom"
+    if not data or not data.strip():
+        raise ValueError("Input data cannot be empty")
 
     try:
+        # Create QR code instance
+        qr = QRCode(
+            version=1,  # Controls the size of the QR Code (1 is 21x21)
+            error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medium error correction (~15%)
+            box_size=10,  # Size of each box in pixels
+            border=1,  # Border size in boxes
+        )
 
-        payload = {
-            "config": {
-                "body": "circular",
-                "eye": "frame2",
-                "eyeBall": "ball14",
-                "erf1": ["fv"],
-                "erf2": [],
-                "erf3": [],
-                "brf1": [],
-                "brf2": [],
-                "brf3": [],
-                "bodyColor": "#010536",
-                "bgColor": "#FFFFFF",
-                "eye1Color": "#D52B4B",
-                "eye2Color": "#D52B4B",
-                "eye3Color": "#D52B4B",
-                "eyeBall1Color": "#010536",
-                "eyeBall2Color": "#010536",
-                "eyeBall3Color": "#010536",
-                "gradientColor1": "010536",
-                "gradientColor2": "010536",
-                "gradientType": "radial",
-                "gradientOnEyes": False,
-            },
-            "size": 300,
-            "download": "imageUrl",
-            "file": "png",
-            "data": data,
-        }
+        # Add data and make the QR code
+        qr.add_data(data)
+        qr.make(fit=True)
 
-        headers = {"cache-control": "no-cache", "content-type": "application/json"}
+        # Create image
+        qr_image = qr.make_image(fill_color="black", back_color="white")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    json_response = await response.json()
-                    qr_url = json_response["imageUrl"]
+        # Resize to specified size while maintaining aspect ratio
+        qr_image = qr_image.resize((size, size), Image.Resampling.LANCZOS)
 
-                    if not qr_url.startswith("http"):
-                        qr_url = "https:" + qr_url
+        # Convert to bytes
+        img_buffer = BytesIO()
+        qr_image.save(img_buffer, format="PNG", optimize=True)
+        img_buffer.seek(0)
 
-                    return qr_url
-                else:
-                    text = await response.text()
-                    logging.error(
-                        f"Error generating QR code: {response.status}, {text}"
-                    )
+        return img_buffer.getvalue()
+
     except Exception as e:
-        logging.error(f"An error occurred during generating qrcode {e}")
-        raise
+        raise Exception(f"Failed to generate QR code: {str(e)}")
 
 
-async def upload_image(
-    url: str = "https://api.qrcode-monkey.com/qr/uploadImage",
-) -> str | None:
-    logo_path = Path(__file__).parents[2] / "static/logo.png"
-
-    if not logo_path.exists():
-        logging.error(f"Logo image file does not exist: {logo_path}")
-        return None
-
-    # Create a custom SSL context that doesn't verify the certificate
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-    conn = aiohttp.TCPConnector(ssl=ssl_context)
-
-    async with aiohttp.ClientSession(connector=conn) as session:
-        try:
-            data = aiohttp.FormData()
-            async with aioopen(logo_path, "rb") as image_file:
-                file_content = await image_file.read()
-                data.add_field("file", file_content, filename=logo_path.name)
-
-            logging.info(f"Attempting to upload image to {url}")
-            async with session.post(url, data=data, timeout=30) as response:
-                response.raise_for_status()
-                json_response = await response.json(content_type=None)
-                logging.info("Image uploaded successfully")
-                return json_response["file"]
-        except aiohttp.ClientConnectorError as e:
-            logging.error(f"Connection error: {str(e)}")
-        except aiohttp.ClientResponseError as e:
-            logging.error(f"Error uploading image: {e.status}, {e.message}")
-        except aiohttp.ClientError as e:
-            logging.error(f"Client error: {str(e)}")
-        except asyncio.TimeoutError:
-            logging.error("Request timed out")
-        except KeyError:
-            logging.error("Unexpected response format: 'file' key not found")
-        except Exception as e:
-            logging.error(f"Unexpected error: {str(e)}", exc_info=True)
-
-    return None
+# async def upload_image(
+#     url: str = "https://api.qrcode-monkey.com/qr/uploadImage",
+# ) -> str | None:
+#     logo_path = Path(__file__).parents[2] / "static/logo.png"
+#
+#     if not logo_path.exists():
+#         logging.error(f"Logo image file does not exist: {logo_path}")
+#         return None
+#
+#     # Create a custom SSL context that doesn't verify the certificate
+#     ssl_context = ssl.create_default_context()
+#     ssl_context.check_hostname = False
+#     ssl_context.verify_mode = ssl.CERT_NONE
+#
+#     conn = aiohttp.TCPConnector(ssl=ssl_context)
+#
+#     async with aiohttp.ClientSession(connector=conn) as session:
+#         try:
+#             data = aiohttp.FormData()
+#             async with aioopen(logo_path, "rb") as image_file:
+#                 file_content = await image_file.read()
+#                 data.add_field("file", file_content, filename=logo_path.name)
+#
+#             logging.info(f"Attempting to upload image to {url}")
+#             async with session.post(url, data=data, timeout=30) as response:
+#                 response.raise_for_status()
+#                 json_response = await response.json(content_type=None)
+#                 logging.info("Image uploaded successfully")
+#                 return json_response["file"]
+#         except aiohttp.ClientConnectorError as e:
+#             logging.error(f"Connection error: {str(e)}")
+#         except aiohttp.ClientResponseError as e:
+#             logging.error(f"Error uploading image: {e.status}, {e.message}")
+#         except aiohttp.ClientError as e:
+#             logging.error(f"Client error: {str(e)}")
+#         except asyncio.TimeoutError:
+#             logging.error("Request timed out")
+#         except KeyError:
+#             logging.error("Unexpected response format: 'file' key not found")
+#         except Exception as e:
+#             logging.error(f"Unexpected error: {str(e)}", exc_info=True)
+#
+#     return None
 
 
 # Telegram limits

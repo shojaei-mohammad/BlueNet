@@ -152,7 +152,6 @@ async def handle_purchase(
             f"مبلغ: {service.seller_price:,} تومان\n"
             f"مدت: {tariff.duration_days} روز"
         )
-
         await callback.message.answer_photo(photo=qr_code, caption="کانفیگ VPN شما")
 
         await callback.message.answer_document(

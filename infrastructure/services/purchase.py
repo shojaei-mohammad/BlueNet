@@ -48,7 +48,7 @@ class PurchaseService:
 
     async def _create_wireguard_peer(
         self, service: Service, interface: Interface
-    ) -> tuple[WireguardPeerConfig, str, str]:
+    ) -> tuple[WireguardPeerConfig, str, bytes]:
         """Create WireGuard peer configuration on router"""
         try:
             purchase_data = PurchaseData(
@@ -74,7 +74,7 @@ class PurchaseService:
 
     async def process_purchase(
         self, seller: Seller, tariff: Tariff, interface: Interface
-    ) -> tuple[Service, str, BufferedInputFile, str]:
+    ) -> tuple[Service, BufferedInputFile, BufferedInputFile, str]:
         """Process a service purchase"""
         logging.info(
             f"Starting purchase process for seller {seller.id}, tariff {tariff.id}"
@@ -105,7 +105,7 @@ class PurchaseService:
             logging.info(f"Created service record with ID {service.id}")
 
             # Create WireGuard peer
-            peer_config, config_file, qr_code = await self._create_wireguard_peer(
+            peer_config, config_file, qr_code_bytes = await self._create_wireguard_peer(
                 service, interface
             )
             public_id = (
@@ -128,9 +128,12 @@ class PurchaseService:
 
             # Create config file with proper naming
             config_filename = f"{public_id}.conf"
+            qr_filename = f"{public_id}.png"
             config_document = BufferedInputFile(
                 file=config_file.encode("utf-8"), filename=config_filename
             )
+            qr_code = BufferedInputFile(qr_code_bytes, filename=qr_filename)
+
             logging.info(f"Generated config file: {config_filename}")
 
             # Record transaction

@@ -256,7 +256,7 @@ class WireguardManager:
 
     async def create_peer(
         self, interface_name: str, purchase_data: PurchaseData
-    ) -> tuple[WireguardPeerConfig, str, str]:
+    ) -> tuple[WireguardPeerConfig, str, bytes]:
         """
         Create a new WireGuard peer configuration.
 
@@ -399,7 +399,7 @@ class WireguardManager:
 
     async def reset_peer(
         self, interface_name: str, peer_comment: str
-    ) -> Optional[Tuple[WireguardPeerConfig, str, str]]:
+    ) -> Optional[Tuple[WireguardPeerConfig, str, bytes]]:
         """
         Reset a WireGuard peer's keys on the router.
 

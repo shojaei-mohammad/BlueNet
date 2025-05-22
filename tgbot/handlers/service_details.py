@@ -314,7 +314,7 @@ async def handle_get_config(
             return
 
         # Generate QR code
-        qr_code_url = await generate_qr_code(service.peer.config_file)  # type: ignore
+        qr_code_bytes = await generate_qr_code(service.peer.config_file)  # type: ignore
 
         # Create config file document
         config_document = BufferedInputFile(
@@ -326,9 +326,11 @@ async def handle_get_config(
             document=config_document,
             caption=f"🔰 فایل پیکربندی سرویس {service.peer.public_id}",  # type: ignore
         )
-
+        qr_code = BufferedInputFile(
+            qr_code_bytes, filename=f"wireguard_{service.peer.public_id}.png"
+        )
         await callback.message.answer_photo(
-            photo=qr_code_url,
+            photo=qr_code,
             caption=f" 🔄 کد QR پیکربندی سرویس {service.peer.public_id}",  # type: ignore
         )
 
@@ -487,7 +489,7 @@ async def handle_reset_key(callback: CallbackQuery, seller: Seller, repo: Reques
             )
 
             if result:
-                peer_config, config_file, qr_code = result
+                peer_config, config_file, qr_code_bytes = result
 
                 # Update peer information in database
                 await repo.peers.update_peer_keys(
@@ -502,7 +504,9 @@ async def handle_reset_key(callback: CallbackQuery, seller: Seller, repo: Reques
                     file=config_file.encode("utf-8"),
                     filename=f"wireguard_{service.peer.public_id}.conf",
                 )
-
+                qr_code = BufferedInputFile(
+                    qr_code_bytes, filename=f"wireguard_{service.peer.public_id}.png"
+                )
                 # Send new configuration
                 await callback.message.answer_photo(
                     photo=qr_code, caption="🔄 کلید سرویس با موفقیت بازنشانی شد!"
