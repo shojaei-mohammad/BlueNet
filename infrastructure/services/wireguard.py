@@ -22,10 +22,12 @@ class WireguardManager:
         self._max_retries = 3
         self._retry_delay = 2  # seconds
 
-    async def _ensure_connected(self):
+    async def _ensure_connected(self, force: bool = False):
         """Ensure connection to the MikroTik router."""
-        if not self._client_pool:
+        if force or not self._client_pool:
             try:
+                if self._client_pool:
+                    self._client_pool.disconnect()
                 self._client_pool = RouterOsApiPool(
                     host=self.config.router_host,
                     username=self.config.router_user,
